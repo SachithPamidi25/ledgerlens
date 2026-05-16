@@ -26,6 +26,9 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
     @Value("${rate-limit.ip.max-requests-per-minute:200}")
     private int maxRequestsPerMinute;
 
+    @Value("${rate-limit.ip.trust-proxy-headers:false}")
+    private boolean trustProxyHeaders;
+
     private static final long WINDOW_SECONDS = 60;
 
     // Same atomic Lua pattern as RateLimitService — INCR + conditional EXPIRE in one round-trip
@@ -69,13 +72,15 @@ public class IpRateLimitFilter extends OncePerRequestFilter {
      * X-Forwarded-For contains a comma-separated list — the leftmost is the original client.
      */
     private String extractClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
-        }
-        String realIp = request.getHeader("X-Real-IP");
-        if (realIp != null && !realIp.isBlank()) {
-            return realIp.trim();
+        if (trustProxyHeaders) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                return xff.split(",")[0].trim();
+            }
+            String realIp = request.getHeader("X-Real-IP");
+            if (realIp != null && !realIp.isBlank()) {
+                return realIp.trim();
+            }
         }
         return request.getRemoteAddr();
     }

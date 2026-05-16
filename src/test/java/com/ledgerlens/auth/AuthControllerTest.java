@@ -165,6 +165,18 @@ class AuthControllerTest {
     }
 
     @Test
+    void refresh_accessToken_returns401WithoutInvalidatingSessions() {
+        UUID userId = UUID.randomUUID();
+        String accessToken = jwtService.generateAccessToken("user@example.com", userId);
+
+        ResponseEntity<?> response = controller.refresh(new RefreshRequest(accessToken));
+
+        assertThat(response.getStatusCode().value()).isEqualTo(401);
+        verify(tokenService, never()).invalidateUserSessions(any());
+        verify(tokenService, never()).validateAndDeleteRefreshToken(anyString(), anyString());
+    }
+
+    @Test
     void refresh_validToken_rotatesTokens() {
         UUID userId = UUID.randomUUID();
         String email = "user@example.com";

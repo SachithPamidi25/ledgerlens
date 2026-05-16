@@ -42,7 +42,7 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         }
 
         // Single parse — returns null if invalid or expired
-        String email = jwtService.extractEmailIfValid(token);
+        String email = jwtService.extractAccessEmailIfValid(token);
         if (email == null) {
             filterChain.doFilter(request, response);
             return;

@@ -97,7 +97,7 @@ public class AuthController {
         // Parse once — all three fields come from the same verified Claims object
         io.jsonwebtoken.Claims claims;
         try {
-            claims = jwtService.extractClaims(token);
+            claims = jwtService.extractRefreshClaims(token);
         } catch (io.jsonwebtoken.JwtException e) {
             return ResponseEntity.status(401).body("Invalid refresh token");
         }
@@ -132,7 +132,7 @@ public class AuthController {
                                     @RequestBody(required = false) RefreshRequest request) {
         if (authHeader != null && authHeader.startsWith("Bearer ")) {
             String accessToken = authHeader.substring(7);
-            if (jwtService.isTokenValid(accessToken)) {
+            if (jwtService.isAccessTokenValid(accessToken)) {
                 long remainingMillis = jwtService.getExpirationDate(accessToken).getTime() - new Date().getTime();
                 tokenService.blacklistToken(accessToken, remainingMillis);
             }
@@ -140,10 +140,12 @@ public class AuthController {
 
         // Best-effort: delete refresh token if provided and valid — never fail logout
         if (request != null && request.refreshToken() != null) {
-            String email = jwtService.extractEmailIfValid(request.refreshToken());
-            if (email != null) {
-                String jti = jwtService.extractJti(request.refreshToken());
+            try {
+                io.jsonwebtoken.Claims claims = jwtService.extractRefreshClaims(request.refreshToken());
+                String jti = claims.getId();
                 tokenService.deleteRefreshToken(jti);
+            } catch (io.jsonwebtoken.JwtException ignored) {
+                // Logout is best-effort; invalid refresh tokens should not fail the request.
             }
         }
 

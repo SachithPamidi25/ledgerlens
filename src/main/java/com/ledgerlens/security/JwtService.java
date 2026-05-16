@@ -15,6 +15,10 @@ import java.util.UUID;
 @Service
 public class JwtService {
 
+    private static final String TOKEN_TYPE_CLAIM = "typ";
+    private static final String ACCESS_TOKEN_TYPE = "access";
+    private static final String REFRESH_TOKEN_TYPE = "refresh";
+
     private final JwtProperties jwtProperties;
     private final SecretKey signingKey;
 
@@ -31,18 +35,19 @@ public class JwtService {
     }
 
     public String generateAccessToken(String email, UUID userId) {
-        return buildToken(email, userId, jwtProperties.getExpiration());
+        return buildToken(email, userId, ACCESS_TOKEN_TYPE, jwtProperties.getExpiration());
     }
 
     public String generateRefreshToken(String email, UUID userId) {
-        return buildToken(email, userId, jwtProperties.getRefreshExpiration());
+        return buildToken(email, userId, REFRESH_TOKEN_TYPE, jwtProperties.getRefreshExpiration());
     }
 
-    private String buildToken(String email, UUID userId, long expiration) {
+    private String buildToken(String email, UUID userId, String tokenType, long expiration) {
         return Jwts.builder()
                 .subject(email)
                 .id(UUID.randomUUID().toString())
                 .claim("uid", userId.toString())
+                .claim(TOKEN_TYPE_CLAIM, tokenType)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(signingKey)
@@ -65,6 +70,16 @@ public class JwtService {
         }
     }
 
+    public String extractAccessEmailIfValid(String token) {
+        return extractEmailIfValidForType(token, ACCESS_TOKEN_TYPE);
+    }
+
+    public Claims extractRefreshClaims(String token) {
+        Claims claims = extractClaims(token);
+        requireTokenType(claims, REFRESH_TOKEN_TYPE);
+        return claims;
+    }
+
     public String extractJti(String token) {
         return extractClaims(token).getId();
     }
@@ -76,6 +91,10 @@ public class JwtService {
         } catch (JwtException e) {
             return false;
         }
+    }
+
+    public boolean isAccessTokenValid(String token) {
+        return extractAccessEmailIfValid(token) != null;
     }
 
     public Date getExpirationDate(String token) {
@@ -91,5 +110,22 @@ public class JwtService {
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
+    }
+
+    private String extractEmailIfValidForType(String token, String expectedType) {
+        try {
+            Claims claims = extractClaims(token);
+            requireTokenType(claims, expectedType);
+            return claims.getSubject();
+        } catch (JwtException e) {
+            return null;
+        }
+    }
+
+    private void requireTokenType(Claims claims, String expectedType) {
+        String tokenType = claims.get(TOKEN_TYPE_CLAIM, String.class);
+        if (!expectedType.equals(tokenType)) {
+            throw new JwtException("Invalid token type");
+        }
     }
 }

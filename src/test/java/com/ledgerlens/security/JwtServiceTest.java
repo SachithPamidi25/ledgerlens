@@ -44,6 +44,22 @@ class JwtServiceTest {
     }
 
     @Test
+    void refreshToken_isNotValidAsAccessToken() {
+        String refresh = jwtService.generateRefreshToken(EMAIL, USER_ID);
+
+        assertThat(jwtService.extractAccessEmailIfValid(refresh)).isNull();
+        assertThat(jwtService.isAccessTokenValid(refresh)).isFalse();
+    }
+
+    @Test
+    void accessToken_isNotValidAsRefreshToken() {
+        String access = jwtService.generateAccessToken(EMAIL, USER_ID);
+
+        assertThatExceptionOfType(JwtException.class)
+                .isThrownBy(() -> jwtService.extractRefreshClaims(access));
+    }
+
+    @Test
     void tamperedToken_isInvalid() {
         String token = jwtService.generateAccessToken(EMAIL, USER_ID);
         String tampered = token.substring(0, token.length() - 4) + "XXXX";
