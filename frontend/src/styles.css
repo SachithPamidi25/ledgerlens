@@ -302,7 +302,8 @@ button {
 .category-list,
 .insight-list,
 .settings-list,
-.settings-actions {
+.settings-actions,
+.preference-controls {
   display: grid;
 }
 
@@ -1170,6 +1171,59 @@ input:focus {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.preference-controls {
+  gap: 12px;
+}
+
+.theme-preference {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px;
+  border: 1px solid #d5ded9;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.theme-preference > span {
+  color: #6a7770;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.theme-mode-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d5ded9;
+  border-radius: 8px;
+  background: #eef2ef;
+}
+
+.theme-mode-control button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #56625c;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.theme-mode-control button.active {
+  color: #13201a;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(28, 38, 33, 0.08);
+}
+
 .danger-panel {
   border-color: #f2c6bd;
   background: #fffafa;
@@ -1218,6 +1272,7 @@ input:focus {
 :root[data-theme="dark"] .secondary-action,
 :root[data-theme="dark"] .theme-toggle,
 :root[data-theme="dark"] .currency-select,
+:root[data-theme="dark"] .theme-preference,
 :root[data-theme="dark"] .run-state,
 :root[data-theme="dark"] .receipt-preview {
   background: var(--surface);
@@ -1225,14 +1280,25 @@ input:focus {
   color: var(--text);
 }
 
-:root[data-theme="dark"] .currency-select span {
+:root[data-theme="dark"] .currency-select span,
+:root[data-theme="dark"] .theme-preference > span {
   color: var(--muted);
 }
 
-:root[data-theme="dark"] .currency-trigger {
+:root[data-theme="dark"] .currency-trigger,
+:root[data-theme="dark"] .theme-mode-control {
   border-color: var(--border);
   background: var(--surface-muted);
   color: var(--text);
+}
+
+:root[data-theme="dark"] .theme-mode-control button {
+  color: var(--muted-strong);
+}
+
+:root[data-theme="dark"] .theme-mode-control button.active {
+  color: var(--text-strong);
+  background: var(--accent-soft-2);
 }
 
 :root[data-theme="dark"] .currency-menu {
@@ -1587,8 +1653,14 @@ input:focus {
     flex-direction: column;
   }
 
+  .theme-preference {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .currency-dropdown,
-  .currency-trigger {
+  .currency-trigger,
+  .theme-mode-control {
     width: 100%;
   }
 

@@ -508,7 +508,6 @@ function Dashboard({
             <span className="pulse-dot" />
             API connected
           </div>
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
           <button className="secondary-action" type="button" onClick={handleLogout}>
             <LogOut size={17} />
             Sign out
@@ -568,9 +567,11 @@ function Dashboard({
         {page === "insights" && <InsightsPage summary={summary} insights={insights} totals={totals} loading={loading} />}
         {page === "settings" && (
           <SettingsPage
+            theme={theme}
             totals={totals}
             displayCurrency={displayCurrency}
             deletingLedger={deletingLedger}
+            onToggleTheme={onToggleTheme}
             onCurrencyChange={setDisplayCurrency}
             onRefresh={loadData}
             onLogout={handleLogout}
@@ -803,17 +804,21 @@ function InsightsPage({
 }
 
 function SettingsPage({
+  theme,
   totals,
   displayCurrency,
   deletingLedger,
+  onToggleTheme,
   onCurrencyChange,
   onRefresh,
   onLogout,
   onDeleteLedger
 }: {
+  theme: Theme;
   totals: Totals;
   displayCurrency: CurrencyCode;
   deletingLedger: boolean;
+  onToggleTheme: () => void;
   onCurrencyChange: (currency: CurrencyCode) => void;
   onRefresh: () => void;
   onLogout: () => void;
@@ -844,7 +849,10 @@ function SettingsPage({
             <p>Choose how ledger values are displayed in this browser.</p>
           </div>
         </div>
-        <CurrencySelect value={displayCurrency} onChange={onCurrencyChange} />
+        <div className="preference-controls">
+          <ThemePreference theme={theme} onToggle={onToggleTheme} />
+          <CurrencySelect value={displayCurrency} onChange={onCurrencyChange} />
+        </div>
       </div>
 
       <div className="panel">
@@ -901,6 +909,26 @@ function SettingsPage({
         </div>
       </div>
     </section>
+  );
+}
+
+function ThemePreference({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
+  const isDark = theme === "dark";
+
+  return (
+    <div className="theme-preference">
+      <span>Theme</span>
+      <div className="theme-mode-control" role="group" aria-label="Theme">
+        <button className={!isDark ? "active" : ""} type="button" onClick={() => isDark && onToggle()}>
+          <Sun size={16} />
+          Light
+        </button>
+        <button className={isDark ? "active" : ""} type="button" onClick={() => !isDark && onToggle()}>
+          <Moon size={16} />
+          Dark
+        </button>
+      </div>
+    </div>
   );
 }
 
