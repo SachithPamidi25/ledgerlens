@@ -128,7 +128,7 @@ export async function logout() {
 }
 
 export function getReceipts() {
-  return request<Page<Receipt>>("/api/receipts?size=12");
+  return request<Page<Receipt>>("/api/receipts?size=100");
 }
 
 export function deleteReceipt(id: string) {

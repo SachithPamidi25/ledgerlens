@@ -20,7 +20,7 @@ import {
   UploadCloud,
   WalletCards
 } from "lucide-react";
-import { FormEvent, Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   clearTokens,
   deleteLedger,
@@ -557,6 +557,7 @@ function Dashboard({
         )}
         {page === "receipts" && (
           <ReceiptsPage
+            receiptPage={receipts}
             receipts={receiptList}
             loading={loading}
             totals={totals}
@@ -717,18 +718,26 @@ function UploadPage({
 }
 
 function ReceiptsPage({
+  receiptPage,
   receipts,
   loading,
   totals,
   deletingReceiptId,
   onDeleteReceipt
 }: {
+  receiptPage: Page<Receipt> | null;
   receipts: Receipt[];
   loading: boolean;
   totals: Totals;
   deletingReceiptId: string | null;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
+  const loadedCount = receipts.length;
+  const totalCount = receiptPage?.totalElements ?? totals.count;
+  const totalPages = receiptPage?.totalPages ?? 0;
+  const pageNumber = (receiptPage?.number ?? 0) + 1;
+  const hiddenCount = Math.max(totalCount - loadedCount, 0);
+
   return (
     <div className="page-stack">
       <section className="status-grid">
@@ -738,11 +747,22 @@ function ReceiptsPage({
         <MiniStat label="Failed" value={String(totals.failed)} tone="danger" />
       </section>
 
-      <section className="panel">
-        <div className="panel-heading">
+      <section className="panel ledger-panel">
+        <div className="panel-heading ledger-panel-heading">
           <div>
             <h2>Ledger Entries</h2>
-            <p>{loading ? "Loading..." : `${receipts.length} receipts visible`}</p>
+            <p>
+              {loading
+                ? "Loading receipts..."
+                : hiddenCount
+                  ? `Showing ${loadedCount} of ${totalCount} receipts`
+                  : `${totalCount} receipts in this ledger`}
+            </p>
+          </div>
+          <div className="ledger-summary" aria-label="Receipt list summary">
+            <span>{loading ? "Syncing" : `${loadedCount} loaded`}</span>
+            <span>Newest first</span>
+            {totalPages > 1 && <span>Page {pageNumber} of {totalPages}</span>}
           </div>
         </div>
         <LedgerTable
@@ -1099,25 +1119,13 @@ function JournalPreview({ receipt, amount, running }: { receipt: Receipt; amount
           {balanced ? "Balanced" : "Unbalanced"}
         </span>
       </div>
-      <div className="journal-lines" aria-label={`Journal entry for ${receipt.vendor || receipt.originalFilename}`}>
-        <span>Account</span>
-        <span>Debit</span>
-        <span>Credit</span>
-        {receipt.journalEntry.lines.map((line) => {
-          const debit = Number(line.debit);
-          const credit = Number(line.credit);
-
-          return (
-            <Fragment key={`${line.accountId}-${debit}-${credit}`}>
-              <strong>{debit > 0 ? `Dr ${line.accountName}` : `Cr ${line.accountName}`}</strong>
-              <span>{debit > 0 ? money(debit, currency) : "-"}</span>
-              <span>{credit > 0 ? money(credit, currency) : "-"}</span>
-            </Fragment>
-          );
-        })}
-        <strong>Total</strong>
-        <strong>{money(debitTotal, currency)}</strong>
-        <strong>{money(creditTotal, currency)}</strong>
+      <div className="journal-compact" aria-label={`Journal entry for ${receipt.vendor || receipt.originalFilename}`}>
+        <span>
+          Debit <strong>{money(debitTotal, currency)}</strong>
+        </span>
+        <span>
+          Credit <strong>{money(creditTotal, currency)}</strong>
+        </span>
       </div>
     </div>
   );

@@ -768,6 +768,35 @@ input:focus {
   font-size: 14px;
 }
 
+.ledger-panel {
+  padding: 18px;
+}
+
+.ledger-panel-heading {
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.ledger-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.ledger-summary span {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d5ded9;
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #f7faf8;
+  color: #536059;
+  font-size: 12px;
+  font-weight: 900;
+}
+
 .text-action {
   gap: 4px;
   border: 0;
@@ -939,13 +968,13 @@ input:focus {
 }
 
 .ledger-row {
-  min-width: 1040px;
+  min-width: 980px;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 150px 120px 140px minmax(360px, 1.4fr) 70px;
+  grid-template-columns: minmax(220px, 1fr) 148px 116px 138px minmax(300px, 1.35fr) 58px;
   gap: 16px;
-  align-items: start;
-  min-height: 96px;
-  padding: 16px;
+  align-items: center;
+  min-height: 74px;
+  padding: 12px 14px;
   border-top: 1px solid #edf1ef;
 }
 
@@ -1004,7 +1033,7 @@ input:focus {
 
 .journal-preview {
   display: grid;
-  gap: 8px;
+  gap: 7px;
   text-align: left;
 }
 
@@ -1027,6 +1056,33 @@ input:focus {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 13px;
+}
+
+.journal-compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.journal-compact span {
+  min-height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  padding: 0 9px;
+  background: #fbfdfc;
+  color: #62706a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.journal-compact strong {
+  color: #17201d;
+  font-size: 12px;
+  white-space: nowrap;
 }
 
 .balance-pill {
@@ -1454,6 +1510,12 @@ input:focus {
   color: var(--muted);
 }
 
+:root[data-theme="dark"] .ledger-summary span {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--muted-strong);
+}
+
 :root[data-theme="dark"] .receipt-cell strong {
   color: var(--text);
 }
@@ -1467,6 +1529,16 @@ input:focus {
 :root[data-theme="dark"] .journal-lines {
   border-color: var(--border);
   background: var(--surface-muted);
+}
+
+:root[data-theme="dark"] .journal-compact span {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .journal-compact strong {
+  color: var(--text);
 }
 
 :root[data-theme="dark"] .journal-lines strong:nth-last-child(-n + 3) {
