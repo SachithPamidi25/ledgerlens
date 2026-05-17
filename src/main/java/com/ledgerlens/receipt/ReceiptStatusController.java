@@ -11,8 +11,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Slf4j
 @RestController
@@ -47,25 +49,42 @@ public class ReceiptStatusController {
 
         SseEmitter emitter = new SseEmitter(300_000L); // 5 minute timeout
         String channel = "receipt.status." + id;
+        ChannelTopic topic = new ChannelTopic(channel);
+        AtomicBoolean closed = new AtomicBoolean(false);
+        AtomicReference<MessageListener> listenerRef = new AtomicReference<>();
 
         MessageListener listener = (message, pattern) -> {
             try {
-                String payload = new String(message.getBody());
+                String payload = new String(message.getBody(), StandardCharsets.UTF_8);
                 emitter.send(SseEmitter.event()
                         .name("status")
                         .data(payload));
                 if (isTerminalStatus(payload)) {
+                    closed.set(true);
+                    listenerContainer.removeMessageListener(listenerRef.get(), topic);
                     emitter.complete();
                 }
-            } catch (IOException e) {
-                emitter.completeWithError(e);
+            } catch (Exception e) {
+                if (closed.compareAndSet(false, true)) {
+                    listenerContainer.removeMessageListener(listenerRef.get(), topic);
+                    log.debug("SSE client disconnected before status could be sent: receiptId={}", id, e);
+                }
+                try {
+                    emitter.complete();
+                } catch (Exception ignored) {
+                    // The connection is already gone.
+                }
             }
         };
+        listenerRef.set(listener);
 
-        ChannelTopic topic = new ChannelTopic(channel);
         listenerContainer.addMessageListener(listener, topic);
 
-        Runnable cleanup = () -> listenerContainer.removeMessageListener(listener, topic);
+        Runnable cleanup = () -> {
+            if (closed.compareAndSet(false, true)) {
+                listenerContainer.removeMessageListener(listener, topic);
+            }
+        };
         emitter.onCompletion(cleanup);
         emitter.onTimeout(cleanup);
         emitter.onError(e -> cleanup.run());
