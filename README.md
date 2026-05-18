@@ -17,7 +17,7 @@ The project is built around a production-inspired backend flow: direct-to-object
 - RabbitMQ
 - MinIO object storage
 - Resilience4j
-- Anthropic Claude Vision API
+- AI vision extraction API
 
 **Frontend**
 - React
@@ -38,7 +38,7 @@ The project is built around a production-inspired backend flow: direct-to-object
 - Issues rotating refresh tokens and supports token invalidation on logout or reuse detection.
 - Generates short-lived MinIO presigned URLs so receipt images upload directly to object storage.
 - Queues receipt processing through an outbox table and RabbitMQ.
-- Extracts receipt fields with Claude Vision: merchant, date, category, subtotal, tax, tip, total, currency, and line items.
+- Extracts receipt fields with an AI vision service: merchant, date, category, subtotal, tax, tip, total, currency, and line items.
 - Detects duplicate receipts using content hashes, database constraints, and Redis locks.
 - Models receipt lifecycle states such as `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, `DUPLICATE`, and `PERMANENTLY_FAILED`.
 - Posts completed receipts into a balanced double-entry ledger.
@@ -83,7 +83,7 @@ flowchart LR
         WORKER[Receipt Processing Worker<br/>idempotent consumers]
         MINIO[MinIO<br/>S3-compatible object storage]
         REDIS[Redis<br/>locks + status cache]
-        AI[AI Receipt Extraction Service<br/>Claude Vision]
+        AI[AI Receipt Extraction Service<br/>Vision model]
     end
 
     FE -->|request presigned URL| APP
@@ -178,7 +178,7 @@ LedgerLens uses several backend patterns that are common in payment, finance, an
 - **Distributed duplicate lock:** uses Redis to prevent concurrent workers from processing the same receipt image at the same time.
 - **Terminal state modeling:** receipts move into explicit final states instead of silently failing.
 - **Double-entry validation:** ledger entries must balance before they are persisted.
-- **External I/O isolation:** long-running MinIO and Claude calls do not hold database transactions open.
+- **External I/O isolation:** long-running MinIO and AI extraction calls do not hold database transactions open.
 - **SSE status streaming:** clients get live processing updates without aggressive polling.
 
 ## API Overview
@@ -321,7 +321,7 @@ src/main/java/com/ledgerlens
 
 This project intentionally favors reliability and clear boundaries over a simple CRUD-only implementation. The receipt pipeline is split into API, storage, outbox, queue, worker, persistence, and ledger-posting stages so each failure mode can be handled independently.
 
-The codebase also separates slow external I/O from database transactions. Receipt images are downloaded from MinIO and sent to Claude outside long-running transactional sections, while final database updates happen in focused persistence methods.
+The codebase also separates slow external I/O from database transactions. Receipt images are downloaded from MinIO and sent to the AI extraction service outside long-running transactional sections, while final database updates happen in focused persistence methods.
 
 The main engineering concerns modeled in this project are distributed consistency, asynchronous workflow orchestration, retry safety, event durability, queue-driven scalability, ledger correctness, and operational visibility into background processing.
 

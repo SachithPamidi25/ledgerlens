@@ -858,7 +858,7 @@ function SettingsPage({
           <SettingRow label="API base" value="/api" />
           <SettingRow label="Storage flow" value="MinIO presigned upload" />
           <SettingRow label="Processing" value="RabbitMQ outbox queue" />
-          <SettingRow label="Insights" value="Claude-backed summaries" />
+          <SettingRow label="Insights" value="AI-backed summaries" />
         </div>
       </div>
 
