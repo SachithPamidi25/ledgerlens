@@ -23,6 +23,7 @@ import {
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
   clearTokens,
+  correctReceipt,
   deleteLedger,
   deleteReceipt,
   getAccessToken,
@@ -34,7 +35,7 @@ import {
   register,
   uploadReceipt
 } from "./api";
-import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptStatus, SummaryItem } from "./types";
+import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, SummaryItem } from "./types";
 
 type AuthMode = "login" | "register";
 type AppPage = "overview" | "upload" | "receipts" | "insights" | "settings";
@@ -302,6 +303,8 @@ function Dashboard({
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [activeReceiptIds, setActiveReceiptIds] = useState<string[]>([]);
   const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+  const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+  const [correctingReceiptId, setCorrectingReceiptId] = useState<string | null>(null);
   const [deletingLedger, setDeletingLedger] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(() => {
     const saved = localStorage.getItem("ledgerlens.currency");
@@ -457,6 +460,20 @@ function Dashboard({
     }
   }
 
+  async function handleCorrectReceipt(receiptId: string, correction: ReceiptCorrectionRequest) {
+    setCorrectingReceiptId(receiptId);
+    setError("");
+    try {
+      await correctReceipt(receiptId, correction);
+      setEditingReceipt(null);
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Correction failed");
+    } finally {
+      setCorrectingReceiptId(null);
+    }
+  }
+
   async function handleDeleteLedger() {
     const confirmation = window.prompt(
       "This will permanently delete every receipt in this ledger and remove stored receipt files. Type DELETE LEDGER to continue."
@@ -562,6 +579,11 @@ function Dashboard({
             loading={loading}
             totals={totals}
             deletingReceiptId={deletingReceiptId}
+            editingReceipt={editingReceipt}
+            correctingReceiptId={correctingReceiptId}
+            onEditReceipt={setEditingReceipt}
+            onCancelEdit={() => setEditingReceipt(null)}
+            onCorrectReceipt={handleCorrectReceipt}
             onDeleteReceipt={handleDeleteReceipt}
           />
         )}
@@ -723,6 +745,11 @@ function ReceiptsPage({
   loading,
   totals,
   deletingReceiptId,
+  editingReceipt,
+  correctingReceiptId,
+  onEditReceipt,
+  onCancelEdit,
+  onCorrectReceipt,
   onDeleteReceipt
 }: {
   receiptPage: Page<Receipt> | null;
@@ -730,6 +757,11 @@ function ReceiptsPage({
   loading: boolean;
   totals: Totals;
   deletingReceiptId: string | null;
+  editingReceipt: Receipt | null;
+  correctingReceiptId: string | null;
+  onEditReceipt: (receipt: Receipt) => void;
+  onCancelEdit: () => void;
+  onCorrectReceipt: (receiptId: string, correction: ReceiptCorrectionRequest) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
   const loadedCount = receipts.length;
@@ -769,9 +801,19 @@ function ReceiptsPage({
           receipts={receipts}
           loading={loading}
           deletingReceiptId={deletingReceiptId}
+          onEditReceipt={onEditReceipt}
           onDeleteReceipt={onDeleteReceipt}
         />
       </section>
+
+      {editingReceipt && (
+        <CorrectionPanel
+          receipt={editingReceipt}
+          saving={correctingReceiptId === editingReceipt.id}
+          onCancel={onCancelEdit}
+          onSubmit={onCorrectReceipt}
+        />
+      )}
     </div>
   );
 }
@@ -1034,11 +1076,13 @@ function LedgerTable({
   receipts,
   loading,
   deletingReceiptId,
+  onEditReceipt,
   onDeleteReceipt
 }: {
   receipts: Receipt[];
   loading: boolean;
   deletingReceiptId: string | null;
+  onEditReceipt: (receipt: Receipt) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
   const rows = useMemo(() => {
@@ -1080,19 +1124,113 @@ function LedgerTable({
           <span className="date-cell">{receipt.receiptDate ?? formatDate(receipt.createdAt)}</span>
           <span>{receipt.merchantCategory ? titleCase(receipt.merchantCategory) : "Uncategorized"}</span>
           <JournalPreview receipt={receipt} amount={amount} running={running} />
-          <button
-            className="icon-button danger-icon"
-            type="button"
-            onClick={() => onDeleteReceipt(receipt)}
-            disabled={deletingReceiptId === receipt.id}
-            aria-label={`Delete ${receipt.vendor || receipt.originalFilename}`}
-            title="Delete receipt"
-          >
-            {deletingReceiptId === receipt.id ? <Loader2 size={16} /> : <Trash2 size={16} />}
-          </button>
+          <div className="row-actions">
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => onEditReceipt(receipt)}
+              disabled={receipt.status !== "COMPLETED"}
+              aria-label={`Correct ${receipt.vendor || receipt.originalFilename}`}
+              title="Correct extracted fields"
+            >
+              <RefreshCcw size={16} />
+            </button>
+            <button
+              className="icon-button danger-icon"
+              type="button"
+              onClick={() => onDeleteReceipt(receipt)}
+              disabled={deletingReceiptId === receipt.id}
+              aria-label={`Delete ${receipt.vendor || receipt.originalFilename}`}
+              title="Delete receipt"
+            >
+              {deletingReceiptId === receipt.id ? <Loader2 size={16} /> : <Trash2 size={16} />}
+            </button>
+          </div>
         </div>
       ))}
     </div>
+  );
+}
+
+function CorrectionPanel({
+  receipt,
+  saving,
+  onCancel,
+  onSubmit
+}: {
+  receipt: Receipt;
+  saving: boolean;
+  onCancel: () => void;
+  onSubmit: (receiptId: string, correction: ReceiptCorrectionRequest) => void;
+}) {
+  const [vendor, setVendor] = useState(receipt.vendor ?? "");
+  const [merchantCategory, setMerchantCategory] = useState(receipt.merchantCategory ?? "OTHER");
+  const [receiptDate, setReceiptDate] = useState(receipt.receiptDate ?? "");
+  const [total, setTotal] = useState(String(receipt.total ?? ""));
+  const [currency, setCurrency] = useState(receipt.currency ?? "INR");
+  const [reason, setReason] = useState("");
+
+  function submit(event: FormEvent) {
+    event.preventDefault();
+    onSubmit(receipt.id, {
+      vendor,
+      merchantCategory,
+      receiptDate: receiptDate || null,
+      total: total ? Number(total) : null,
+      currency,
+      reason
+    });
+  }
+
+  return (
+    <section className="panel correction-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Correct Receipt</h2>
+          <p>{receipt.originalFilename}</p>
+        </div>
+      </div>
+      <form className="correction-form" onSubmit={submit}>
+        <label>
+          Vendor
+          <input value={vendor} onChange={(event) => setVendor(event.target.value)} />
+        </label>
+        <label>
+          Category
+          <select value={merchantCategory} onChange={(event) => setMerchantCategory(event.target.value)}>
+            {["FOOD", "TRANSPORT", "SHOPPING", "ENTERTAINMENT", "HEALTH", "UTILITIES", "OTHER"].map((category) => (
+              <option key={category} value={category}>
+                {titleCase(category)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Date
+          <input type="date" value={receiptDate} onChange={(event) => setReceiptDate(event.target.value)} />
+        </label>
+        <label>
+          Total
+          <input type="number" min="0.01" step="0.01" value={total} onChange={(event) => setTotal(event.target.value)} required />
+        </label>
+        <label>
+          Currency
+          <input value={currency} maxLength={10} onChange={(event) => setCurrency(event.target.value.toUpperCase())} />
+        </label>
+        <label className="span-2">
+          Reason
+          <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Wrong total, recategorized, vendor fix..." />
+        </label>
+        <div className="correction-actions span-2">
+          <button className="secondary-action" type="button" onClick={onCancel} disabled={saving}>
+            Cancel
+          </button>
+          <button className="primary-action compact" type="submit" disabled={saving}>
+            {saving ? "Posting..." : "Post correction"}
+          </button>
+        </div>
+      </form>
+    </section>
   );
 }
 
@@ -1127,6 +1265,9 @@ function JournalPreview({ receipt, amount, running }: { receipt: Receipt; amount
           Credit <strong>{money(creditTotal, currency)}</strong>
         </span>
       </div>
+      {(receipt.journalEntries?.length ?? 0) > 1 && (
+        <span className="journal-audit">{receipt.journalEntries?.length} audit entries</span>
+      )}
     </div>
   );
 }

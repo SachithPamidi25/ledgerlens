@@ -28,9 +28,20 @@ public class JournalEntry {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "receipt_id", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "receipt_id")
     private Receipt receipt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entry_type", nullable = false)
+    private JournalEntryType entryType = JournalEntryType.ORIGINAL;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "reversed_entry_id")
+    private JournalEntry reversedEntry;
+
+    @Column(name = "correction_sequence", nullable = false)
+    private int correctionSequence;
 
     @Column(name = "entry_date", nullable = false)
     private LocalDate entryDate;

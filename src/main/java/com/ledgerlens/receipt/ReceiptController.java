@@ -1,6 +1,7 @@
 package com.ledgerlens.receipt;
 
 import com.ledgerlens.security.UserPrincipal;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -51,6 +52,14 @@ public class ReceiptController {
             @RequestParam(defaultValue = "20") int size) {
         var pageable = PageRequest.of(page, Math.min(size, 100), Sort.by("createdAt").descending());
         return ResponseEntity.ok(receiptService.listReceipts(principal.userId(), pageable));
+    }
+
+    @PatchMapping("/{id}/correction")
+    public ResponseEntity<?> correctReceipt(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id,
+            @Valid @RequestBody ReceiptCorrectionRequest request) {
+        return ResponseEntity.ok(receiptService.correctReceipt(id, principal.userId(), request));
     }
 
     @DeleteMapping("/{id}")

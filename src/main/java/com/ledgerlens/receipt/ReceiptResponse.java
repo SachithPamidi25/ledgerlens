@@ -20,10 +20,19 @@ public record ReceiptResponse(
         BigDecimal total,
         String currency,
         JournalEntryResponse journalEntry,
+        java.util.List<JournalEntryResponse> journalEntries,
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {
     public static ReceiptResponse from(Receipt receipt, JournalEntryResponse journalEntry) {
+        return from(receipt, journalEntry, journalEntry == null ? java.util.List.of() : java.util.List.of(journalEntry));
+    }
+
+    public static ReceiptResponse from(
+            Receipt receipt,
+            JournalEntryResponse journalEntry,
+            java.util.List<JournalEntryResponse> journalEntries
+    ) {
         return new ReceiptResponse(
                 receipt.getId(),
                 receipt.getOriginalFilename(),
@@ -37,6 +46,7 @@ public record ReceiptResponse(
                 receipt.getTotal(),
                 receipt.getCurrency(),
                 journalEntry,
+                journalEntries,
                 receipt.getCreatedAt(),
                 receipt.getUpdatedAt()
         );

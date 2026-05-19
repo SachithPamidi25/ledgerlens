@@ -1,4 +1,4 @@
-import type { AuthResponse, InsightsResponse, MonthlySummary, Page, Receipt, UploadUrlResponse } from "./types";
+import type { AuthResponse, InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, UploadUrlResponse } from "./types";
 
 const ACCESS_TOKEN_KEY = "ledgerlens.accessToken";
 const REFRESH_TOKEN_KEY = "ledgerlens.refreshToken";
@@ -137,6 +137,13 @@ export function deleteReceipt(id: string) {
 
 export function deleteLedger() {
   return request<{ deleted: number }>("/api/receipts", { method: "DELETE" });
+}
+
+export function correctReceipt(id: string, correction: ReceiptCorrectionRequest) {
+  return request<Receipt>(`/api/receipts/${id}/correction`, {
+    method: "PATCH",
+    body: JSON.stringify(correction)
+  });
 }
 
 export function getMonthlySummary(year?: number, month?: number) {

@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 @Slf4j
@@ -36,11 +37,70 @@ public class LedgerPostingService {
             log.info("Skipping journal posting for receipt {} because total is missing or non-positive", receipt.getId());
             return;
         }
-        if (journalEntryRepository.existsByReceiptId(receipt.getId())) {
+        if (journalEntryRepository.existsByReceiptIdAndEntryTypeIn(
+                receipt.getId(), List.of(JournalEntryType.ORIGINAL, JournalEntryType.CORRECTION))) {
             log.info("Journal entry already exists for receipt {}", receipt.getId());
             return;
         }
 
+        JournalEntry entry = buildReceiptExpenseEntry(receipt, JournalEntryType.ORIGINAL, 0, null);
+        journalEntryRepository.save(entry);
+        log.info("Posted balanced journal entry for receipt {} amount={}", receipt.getId(), receipt.getTotal());
+    }
+
+    @Transactional
+    public JournalEntry reverseEntry(JournalEntry original, String reason) {
+        JournalEntry reversal = new JournalEntry();
+        reversal.setUser(original.getUser());
+        reversal.setReceipt(original.getReceipt());
+        reversal.setEntryDate(LocalDate.now());
+        reversal.setEntryType(JournalEntryType.REVERSAL);
+        reversal.setReversedEntry(original);
+        reversal.setCorrectionSequence(original.getCorrectionSequence() + 1);
+        reversal.setDescription("Reverse " + original.getDescription() + reasonSuffix(reason));
+        reversal.setCurrency(original.getCurrency());
+
+        int lineNumber = 1;
+        for (JournalLine originalLine : original.getLines()) {
+            reversal.addLine(line(
+                    lineNumber++,
+                    originalLine.getAccount(),
+                    originalLine.getCredit(),
+                    originalLine.getDebit()
+            ));
+        }
+
+        assertBalanced(reversal);
+        JournalEntry saved = journalEntryRepository.save(reversal);
+        log.info("Posted reversal journal entry {} for original entry {}", saved.getId(), original.getId());
+        return saved;
+    }
+
+    @Transactional
+    public JournalEntry postReceiptCorrection(Receipt receipt, JournalEntry reversedEntry, String reason) {
+        if (receipt.getTotal() == null || receipt.getTotal().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Corrected receipt total must be greater than zero");
+        }
+
+        JournalEntry correction = buildReceiptExpenseEntry(
+                receipt,
+                JournalEntryType.CORRECTION,
+                reversedEntry.getCorrectionSequence(),
+                "Corrected receipt expense: "
+                        + (receipt.getVendor() != null ? receipt.getVendor() : receipt.getOriginalFilename())
+                        + reasonSuffix(reason)
+        );
+        JournalEntry saved = journalEntryRepository.save(correction);
+        log.info("Posted corrected journal entry {} for receipt {}", saved.getId(), receipt.getId());
+        return saved;
+    }
+
+    private JournalEntry buildReceiptExpenseEntry(
+            Receipt receipt,
+            JournalEntryType entryType,
+            int correctionSequence,
+            String description
+    ) {
         User user = receipt.getUser();
         Account cashAccount = getOrCreateAccount(user, "CASH", "Cash / Bank", AccountType.ASSET);
         MerchantCategory category = receipt.getMerchantCategory() != null ? receipt.getMerchantCategory() : MerchantCategory.OTHER;
@@ -51,15 +111,22 @@ public class LedgerPostingService {
         JournalEntry entry = new JournalEntry();
         entry.setUser(user);
         entry.setReceipt(receipt);
+        entry.setEntryType(entryType);
+        entry.setCorrectionSequence(correctionSequence);
         entry.setEntryDate(receipt.getReceiptDate() != null ? receipt.getReceiptDate() : LocalDate.now());
-        entry.setDescription("Receipt expense: " + (receipt.getVendor() != null ? receipt.getVendor() : receipt.getOriginalFilename()));
+        entry.setDescription(description != null
+                ? description
+                : "Receipt expense: " + (receipt.getVendor() != null ? receipt.getVendor() : receipt.getOriginalFilename()));
         entry.setCurrency(receipt.getCurrency() != null ? receipt.getCurrency() : "INR");
         entry.addLine(line(1, expenseAccount, amount, BigDecimal.ZERO));
         entry.addLine(line(2, cashAccount, BigDecimal.ZERO, amount));
 
         assertBalanced(entry);
-        journalEntryRepository.save(entry);
-        log.info("Posted balanced journal entry for receipt {} amount={}", receipt.getId(), amount);
+        return entry;
+    }
+
+    private String reasonSuffix(String reason) {
+        return reason == null || reason.isBlank() ? "" : " (" + reason.trim() + ")";
     }
 
     private Account getOrCreateAccount(User user, String code, String name, AccountType type) {

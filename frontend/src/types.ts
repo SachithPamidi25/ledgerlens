@@ -25,6 +25,7 @@ export type Receipt = {
   total?: number | null;
   currency?: string | null;
   journalEntry?: JournalEntry | null;
+  journalEntries?: JournalEntry[];
   createdAt: string;
   updatedAt: string;
 };
@@ -43,6 +44,9 @@ export type JournalLine = {
 export type JournalEntry = {
   id: string;
   entryDate: string;
+  entryType: "ORIGINAL" | "REVERSAL" | "CORRECTION";
+  reversedEntryId?: string | null;
+  correctionSequence: number;
   description: string;
   currency: string;
   lines: JournalLine[];
@@ -92,4 +96,16 @@ export type UploadUrlResponse = {
   receiptId: string;
   uploadUrl: string;
   storageKey: string;
+};
+
+export type ReceiptCorrectionRequest = {
+  vendor?: string | null;
+  merchantCategory?: string | null;
+  receiptDate?: string | null;
+  subtotal?: number | null;
+  tax?: number | null;
+  tip?: number | null;
+  total?: number | null;
+  currency?: string | null;
+  reason?: string | null;
 };

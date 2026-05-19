@@ -2,8 +2,10 @@ package com.ledgerlens.receipt;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ledgerlens.config.StorageService;
+import com.ledgerlens.ledger.JournalEntry;
 import com.ledgerlens.ledger.JournalEntryRepository;
 import com.ledgerlens.ledger.JournalEntryResponse;
+import com.ledgerlens.ledger.JournalEntryType;
 import com.ledgerlens.ledger.LedgerPostingService;
 import com.ledgerlens.outbox.OutboxEvent;
 import com.ledgerlens.outbox.OutboxEventRepository;
@@ -159,16 +161,72 @@ public class ReceiptService {
 
     private ReceiptResponse toResponse(Receipt receipt) {
         ensureJournalEntry(receipt);
-        JournalEntryResponse journalEntry = journalEntryRepository.findByReceiptId(receipt.getId())
+        List<JournalEntryResponse> journalEntries = journalEntryRepository.findByReceiptIdOrderByCreatedAtDesc(receipt.getId())
+                .stream()
                 .map(JournalEntryResponse::from)
+                .toList();
+        JournalEntryResponse journalEntry = journalEntries.stream()
+                .filter(entry -> entry.entryType() == JournalEntryType.ORIGINAL
+                        || entry.entryType() == JournalEntryType.CORRECTION)
+                .findFirst()
                 .orElse(null);
-        return ReceiptResponse.from(receipt, journalEntry);
+        return ReceiptResponse.from(receipt, journalEntry, journalEntries);
+    }
+
+    @Transactional
+    public ReceiptResponse correctReceipt(UUID receiptId, UUID userId, ReceiptCorrectionRequest request) {
+        Receipt receipt = receiptRepository.findByIdAndUserId(receiptId, userId)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException(
+                        "Receipt not found: " + receiptId));
+
+        if (receipt.getStatus() != ReceiptStatus.COMPLETED) {
+            throw new IllegalStateException(
+                    "Only completed receipts can be corrected, current status: " + receipt.getStatus());
+        }
+
+        JournalEntry activeEntry = journalEntryRepository
+                .findFirstByReceiptIdAndEntryTypeInOrderByCreatedAtDesc(
+                        receiptId, List.of(JournalEntryType.ORIGINAL, JournalEntryType.CORRECTION))
+                .orElseThrow(() -> new IllegalStateException("Receipt has no posted journal entry to correct"));
+
+        JournalEntry reversal = ledgerPostingService.reverseEntry(activeEntry, request.reason());
+        applyCorrection(receipt, request);
+        ledgerPostingService.postReceiptCorrection(receipt, reversal, request.reason());
+        return toResponse(receipt);
     }
 
     private void ensureJournalEntry(Receipt receipt) {
         if (receipt.getStatus() == ReceiptStatus.COMPLETED
-                && !journalEntryRepository.existsByReceiptId(receipt.getId())) {
+                && !journalEntryRepository.existsByReceiptIdAndEntryTypeIn(
+                        receipt.getId(), List.of(JournalEntryType.ORIGINAL, JournalEntryType.CORRECTION))) {
             ledgerPostingService.postReceiptExpense(receipt);
+        }
+    }
+
+    private void applyCorrection(Receipt receipt, ReceiptCorrectionRequest request) {
+        if (request.vendor() != null) {
+            receipt.setVendor(request.vendor().isBlank() ? null : request.vendor().trim());
+        }
+        if (request.merchantCategory() != null) {
+            receipt.setMerchantCategory(request.merchantCategory());
+        }
+        if (request.receiptDate() != null) {
+            receipt.setReceiptDate(request.receiptDate());
+        }
+        if (request.subtotal() != null) {
+            receipt.setSubtotal(request.subtotal());
+        }
+        if (request.tax() != null) {
+            receipt.setTax(request.tax());
+        }
+        if (request.tip() != null) {
+            receipt.setTip(request.tip());
+        }
+        if (request.total() != null) {
+            receipt.setTotal(request.total());
+        }
+        if (request.currency() != null) {
+            receipt.setCurrency(request.currency().trim().toUpperCase(Locale.ROOT));
         }
     }
 
