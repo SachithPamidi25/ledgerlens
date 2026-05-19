@@ -18,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -25,6 +27,8 @@ import java.util.concurrent.TimeUnit;
 @Service
 @RequiredArgsConstructor
 public class ReceiptService {
+    private static final Set<String> SUPPORTED_RECEIPT_EXTENSIONS =
+            Set.of("png", "jpg", "jpeg", "webp", "gif");
 
     private final ReceiptRepository receiptRepository;
     private final StorageService storageService;
@@ -37,6 +41,7 @@ public class ReceiptService {
 
     @Transactional
     public UploadUrlResponse createUpload(UUID userId, String filename) {
+        validateSupportedReceiptFilename(filename);
         String safeFilename = filename.replaceAll("[^a-zA-Z0-9._-]", "_");
         if (safeFilename.length() > 200) {
             safeFilename = safeFilename.substring(0, 200);
@@ -53,6 +58,22 @@ public class ReceiptService {
 
         log.info("Upload URL created: receiptId={} userId={}", receipt.getId(), userId);
         return new UploadUrlResponse(receipt.getId(), uploadUrl, storageKey);
+    }
+
+    private void validateSupportedReceiptFilename(String filename) {
+        if (filename == null || filename.isBlank()) {
+            throw new IllegalArgumentException("Receipt filename is required");
+        }
+
+        int extensionStart = filename.lastIndexOf('.');
+        if (extensionStart < 0 || extensionStart == filename.length() - 1) {
+            throw new IllegalArgumentException("Receipt file must be PNG, JPG, WEBP, or GIF");
+        }
+
+        String extension = filename.substring(extensionStart + 1).toLowerCase(Locale.ROOT);
+        if (!SUPPORTED_RECEIPT_EXTENSIONS.contains(extension)) {
+            throw new IllegalArgumentException("Unsupported receipt file type. Upload PNG, JPG, WEBP, or GIF");
+        }
     }
 
     /**

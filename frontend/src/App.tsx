@@ -673,7 +673,7 @@ function UploadPage({
 }) {
   const progressLabel = uploadProgress
     ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}`
-    : "Drop in receipt images or PDFs.";
+    : "Drop in receipt images.";
 
   return (
     <section className="upload-layout">
@@ -688,14 +688,14 @@ function UploadPage({
         <label className={`dropzone large ${uploading ? "busy" : ""}`}>
           <input
             type="file"
-            accept="image/*,.pdf"
+            accept="image/png,image/jpeg,image/webp,image/gif"
             multiple
             disabled={uploading}
             onChange={(event) => onFiles(event.target.files ?? undefined)}
           />
           {uploading ? <Loader2 size={30} /> : <UploadCloud size={34} />}
           <span>{uploading ? progressLabel : "Choose receipt files"}</span>
-          <small>PNG, JPG, WEBP, or PDF</small>
+          <small>PNG, JPG, WEBP, or GIF</small>
         </label>
         <div className="pipeline">
           <PipelineStep label="Store" active={uploading} />
