@@ -1,18 +1,26 @@
 import {
   AlertTriangle,
   BarChart3,
+  Bell,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Clipboard,
+  Database,
   FileUp,
+  Filter,
   Home,
   Layers3,
+  ListChecks,
   Loader2,
   LogOut,
   Moon,
   ReceiptText,
   RefreshCcw,
+  RotateCcw,
   Settings,
+  ShieldCheck,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   TimerReset,
@@ -42,6 +50,12 @@ type AppPage = "overview" | "upload" | "receipts" | "insights" | "settings";
 type Theme = "light" | "dark";
 type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "AUD" | "CAD" | "SGD" | "LKR";
 
+type WorkspacePreferences = {
+  openLedgerAfterUpload: boolean;
+  liveStatusUpdates: boolean;
+  receiptStatusFilters: Record<ReceiptStatus, boolean>;
+};
+
 type Totals = {
   total: number;
   currency: CurrencyCode;
@@ -62,6 +76,24 @@ const currencyOptions: { code: CurrencyCode; label: string }[] = [
   { code: "SGD", label: "SGD" },
   { code: "LKR", label: "LKR" }
 ];
+
+const receiptStatusOptions: { status: ReceiptStatus; label: string }[] = [
+  { status: "COMPLETED", label: "Completed" },
+  { status: "PROCESSING", label: "Processing" },
+  { status: "PENDING", label: "Pending" },
+  { status: "DUPLICATE", label: "Duplicates" },
+  { status: "FAILED", label: "Failed" },
+  { status: "PERMANENTLY_FAILED", label: "Permanent failures" }
+];
+
+const defaultPreferences: WorkspacePreferences = {
+  openLedgerAfterUpload: true,
+  liveStatusUpdates: true,
+  receiptStatusFilters: receiptStatusOptions.reduce(
+    (filters, option) => ({ ...filters, [option.status]: true }),
+    {} as Record<ReceiptStatus, boolean>
+  )
+};
 
 const navItems: Array<{ id: AppPage; label: string; icon: React.ReactNode }> = [
   { id: "overview", label: "Overview", icon: <Home size={18} /> },
@@ -173,6 +205,25 @@ function CurrencySelect({ value, onChange }: { value: CurrencyCode; onChange: (c
 
 function isCurrencyCode(value: unknown): value is CurrencyCode {
   return typeof value === "string" && currencyOptions.some((currency) => currency.code === value);
+}
+
+function readWorkspacePreferences(): WorkspacePreferences {
+  const saved = localStorage.getItem("ledgerlens.preferences");
+  if (!saved) return defaultPreferences;
+
+  try {
+    const parsed = JSON.parse(saved) as Partial<WorkspacePreferences>;
+    return {
+      openLedgerAfterUpload: parsed.openLedgerAfterUpload ?? defaultPreferences.openLedgerAfterUpload,
+      liveStatusUpdates: parsed.liveStatusUpdates ?? defaultPreferences.liveStatusUpdates,
+      receiptStatusFilters: {
+        ...defaultPreferences.receiptStatusFilters,
+        ...(parsed.receiptStatusFilters ?? {})
+      }
+    };
+  } catch {
+    return defaultPreferences;
+  }
 }
 
 function AuthScreen({ theme, onToggleTheme, onSignedIn }: { theme: Theme; onToggleTheme: () => void; onSignedIn: () => void }) {
@@ -310,6 +361,7 @@ function Dashboard({
     const saved = localStorage.getItem("ledgerlens.currency");
     return isCurrencyCode(saved) ? saved : "INR";
   });
+  const [preferences, setPreferences] = useState<WorkspacePreferences>(() => readWorkspacePreferences());
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -346,7 +398,11 @@ function Dashboard({
   }, [displayCurrency]);
 
   useEffect(() => {
-    if (!activeReceiptIds.length) return;
+    localStorage.setItem("ledgerlens.preferences", JSON.stringify(preferences));
+  }, [preferences]);
+
+  useEffect(() => {
+    if (!preferences.liveStatusUpdates || !activeReceiptIds.length) return;
 
     const token = getAccessToken();
     if (!token) return;
@@ -368,7 +424,7 @@ function Dashboard({
     });
 
     return () => sources.forEach((source) => source.close());
-  }, [activeReceiptIds, loadData]);
+  }, [activeReceiptIds, loadData, preferences.liveStatusUpdates]);
 
   useEffect(() => {
     if (!activeReceiptIds.length) return;
@@ -393,6 +449,10 @@ function Dashboard({
   }, [activeReceiptIds.length, receipts]);
 
   const receiptList = receipts?.content ?? [];
+  const filteredReceiptList = useMemo(
+    () => receiptList.filter((receipt) => preferences.receiptStatusFilters[receipt.status]),
+    [preferences.receiptStatusFilters, receiptList]
+  );
   const totals = useMemo<Totals>(() => {
     const completedReceipts = receiptList.filter((receipt) => receipt.status === "COMPLETED");
     const completedTotal = receiptList.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0);
@@ -431,7 +491,9 @@ function Dashboard({
         }
       }
       await loadData();
-      setPage("receipts");
+      if (preferences.openLedgerAfterUpload) {
+        setPage("receipts");
+      }
       setError(failures.length ? failures.join(". ") : "");
     } finally {
       setUploading(false);
@@ -491,6 +553,25 @@ function Dashboard({
     } finally {
       setDeletingLedger(false);
     }
+  }
+
+  function updatePreference<K extends keyof WorkspacePreferences>(key: K, value: WorkspacePreferences[K]) {
+    setPreferences((current) => ({ ...current, [key]: value }));
+  }
+
+  function updateReceiptStatusFilter(status: ReceiptStatus, enabled: boolean) {
+    setPreferences((current) => ({
+      ...current,
+      receiptStatusFilters: {
+        ...current.receiptStatusFilters,
+        [status]: enabled
+      }
+    }));
+  }
+
+  function resetBrowserSettings() {
+    setDisplayCurrency("INR");
+    setPreferences(defaultPreferences);
   }
 
   return (
@@ -575,9 +656,10 @@ function Dashboard({
         {page === "receipts" && (
           <ReceiptsPage
             receiptPage={receipts}
-            receipts={receiptList}
+            receipts={filteredReceiptList}
             loading={loading}
             totals={totals}
+            visibleCount={filteredReceiptList.length}
             deletingReceiptId={deletingReceiptId}
             editingReceipt={editingReceipt}
             correctingReceiptId={correctingReceiptId}
@@ -593,9 +675,13 @@ function Dashboard({
             theme={theme}
             totals={totals}
             displayCurrency={displayCurrency}
+            preferences={preferences}
             deletingLedger={deletingLedger}
             onToggleTheme={onToggleTheme}
             onCurrencyChange={setDisplayCurrency}
+            onPreferenceChange={updatePreference}
+            onReceiptStatusFilterChange={updateReceiptStatusFilter}
+            onResetBrowserSettings={resetBrowserSettings}
             onRefresh={loadData}
             onLogout={handleLogout}
             onDeleteLedger={handleDeleteLedger}
@@ -744,6 +830,7 @@ function ReceiptsPage({
   receipts,
   loading,
   totals,
+  visibleCount,
   deletingReceiptId,
   editingReceipt,
   correctingReceiptId,
@@ -756,6 +843,7 @@ function ReceiptsPage({
   receipts: Receipt[];
   loading: boolean;
   totals: Totals;
+  visibleCount: number;
   deletingReceiptId: string | null;
   editingReceipt: Receipt | null;
   correctingReceiptId: string | null;
@@ -788,7 +876,9 @@ function ReceiptsPage({
                 ? "Loading receipts..."
                 : hiddenCount
                   ? `Showing ${loadedCount} of ${totalCount} receipts`
-                  : `${totalCount} receipts in this ledger`}
+                  : visibleCount < totalCount
+                    ? `${visibleCount} receipts visible after filters`
+                    : `${totalCount} receipts in this ledger`}
             </p>
           </div>
           <div className="ledger-summary" aria-label="Receipt list summary">
@@ -869,9 +959,13 @@ function SettingsPage({
   theme,
   totals,
   displayCurrency,
+  preferences,
   deletingLedger,
   onToggleTheme,
   onCurrencyChange,
+  onPreferenceChange,
+  onReceiptStatusFilterChange,
+  onResetBrowserSettings,
   onRefresh,
   onLogout,
   onDeleteLedger
@@ -879,13 +973,43 @@ function SettingsPage({
   theme: Theme;
   totals: Totals;
   displayCurrency: CurrencyCode;
+  preferences: WorkspacePreferences;
   deletingLedger: boolean;
   onToggleTheme: () => void;
   onCurrencyChange: (currency: CurrencyCode) => void;
+  onPreferenceChange: <K extends keyof WorkspacePreferences>(key: K, value: WorkspacePreferences[K]) => void;
+  onReceiptStatusFilterChange: (status: ReceiptStatus, enabled: boolean) => void;
+  onResetBrowserSettings: () => void;
   onRefresh: () => void;
   onLogout: () => void;
   onDeleteLedger: () => void;
 }) {
+  const [copied, setCopied] = useState(false);
+  const enabledFilters = receiptStatusOptions.filter((option) => preferences.receiptStatusFilters[option.status]).length;
+  const tokenPresent = Boolean(getAccessToken());
+
+  async function copyDiagnostics() {
+    const diagnostics = {
+      apiBase: "/api",
+      theme,
+      displayCurrency,
+      liveStatusUpdates: preferences.liveStatusUpdates,
+      openLedgerAfterUpload: preferences.openLedgerAfterUpload,
+      enabledReceiptFilters: receiptStatusOptions
+        .filter((option) => preferences.receiptStatusFilters[option.status])
+        .map((option) => option.status),
+      session: tokenPresent ? "active" : "missing"
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(diagnostics, null, 2));
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+    }
+  }
+
   return (
     <section className="settings-layout">
       <div className="panel">
@@ -901,6 +1025,7 @@ function SettingsPage({
           <SettingRow label="Storage flow" value="MinIO presigned upload" />
           <SettingRow label="Processing" value="RabbitMQ outbox queue" />
           <SettingRow label="Insights" value="AI-backed summaries" />
+          <SettingRow label="Session token" value={tokenPresent ? "Present in browser storage" : "Missing"} />
         </div>
       </div>
 
@@ -910,10 +1035,59 @@ function SettingsPage({
             <h2>Preferences</h2>
             <p>Choose how ledger values are displayed in this browser.</p>
           </div>
+          <SlidersHorizontal size={22} />
         </div>
         <div className="preference-controls">
           <ThemePreference theme={theme} onToggle={onToggleTheme} />
           <CurrencySelect value={displayCurrency} onChange={onCurrencyChange} />
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Upload Behavior</h2>
+            <p>Control what happens after receipt files are queued.</p>
+          </div>
+          <Bell size={22} />
+        </div>
+        <div className="toggle-list">
+          <ToggleRow
+            icon={<ListChecks size={18} />}
+            label="Open ledger after upload"
+            detail="Jump to Receipts when a batch finishes."
+            checked={preferences.openLedgerAfterUpload}
+            onChange={(checked) => onPreferenceChange("openLedgerAfterUpload", checked)}
+          />
+          <ToggleRow
+            icon={<ShieldCheck size={18} />}
+            label="Live processing updates"
+            detail="Use SSE status streams while receipts are processing."
+            checked={preferences.liveStatusUpdates}
+            onChange={(checked) => onPreferenceChange("liveStatusUpdates", checked)}
+          />
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Receipt Filters</h2>
+            <p>{enabledFilters} status groups visible in the ledger.</p>
+          </div>
+          <Filter size={22} />
+        </div>
+        <div className="filter-grid">
+          {receiptStatusOptions.map((option) => (
+            <label className="filter-chip" key={option.status}>
+              <input
+                type="checkbox"
+                checked={preferences.receiptStatusFilters[option.status]}
+                onChange={(event) => onReceiptStatusFilterChange(option.status, event.target.checked)}
+              />
+              <span>{option.label}</span>
+            </label>
+          ))}
         </div>
       </div>
 
@@ -932,6 +1106,26 @@ function SettingsPage({
           <button className="danger-action" type="button" onClick={onLogout}>
             <LogOut size={17} />
             Sign out
+          </button>
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Browser Tools</h2>
+            <p>Utilities for local troubleshooting and preferences.</p>
+          </div>
+          <Database size={22} />
+        </div>
+        <div className="settings-actions">
+          <button className="secondary-action" type="button" onClick={copyDiagnostics}>
+            <Clipboard size={17} />
+            {copied ? "Copied" : "Copy diagnostics"}
+          </button>
+          <button className="secondary-action" type="button" onClick={onResetBrowserSettings}>
+            <RotateCcw size={17} />
+            Reset browser settings
           </button>
         </div>
       </div>
@@ -1356,6 +1550,31 @@ function SettingRow({ label, value }: { label: string; value: string }) {
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
+  );
+}
+
+function ToggleRow({
+  icon,
+  label,
+  detail,
+  checked,
+  onChange
+}: {
+  icon: React.ReactNode;
+  label: string;
+  detail: string;
+  checked: boolean;
+  onChange: (checked: boolean) => void;
+}) {
+  return (
+    <label className="toggle-row">
+      <span className="toggle-icon">{icon}</span>
+      <span>
+        <strong>{label}</strong>
+        <small>{detail}</small>
+      </span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    </label>
   );
 }
 
