@@ -682,6 +682,9 @@ select:focus {
 .metric-grid,
 .overview-grid,
 .upload-layout,
+.expenses-page,
+.expense-summary-grid,
+.expense-card-grid,
 .insights-layout,
 .settings-layout,
 .status-grid {
@@ -729,6 +732,155 @@ select:focus {
 
 .month-select {
   width: min(260px, 100%);
+}
+
+.expenses-page {
+  gap: 16px;
+}
+
+.expenses-hero {
+  min-height: 136px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border: 1px solid #dbe3df;
+  border-radius: 8px;
+  padding: 22px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(26, 38, 33, 0.06);
+}
+
+.expenses-hero span,
+.expense-card-top span {
+  color: #62706a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.expenses-hero h2 {
+  margin: 7px 0;
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.expenses-hero p {
+  margin: 0;
+  color: #62706a;
+}
+
+.expenses-mode-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(92px, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #d5ded9;
+  border-radius: 8px;
+  background: #eef2ef;
+}
+
+.expenses-mode-control button {
+  min-height: 36px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #56625c;
+  font-weight: 900;
+}
+
+.expenses-mode-control button.active {
+  color: #13201a;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(28, 38, 33, 0.08);
+}
+
+.expense-summary-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.expense-card-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.expense-period-card {
+  min-width: 0;
+  min-height: 278px;
+  display: grid;
+  align-content: start;
+  gap: 15px;
+  border: 1px solid #dbe3df;
+  border-radius: 8px;
+  padding: 18px;
+  background: #fff;
+  box-shadow: 0 16px 48px rgba(26, 38, 33, 0.06);
+}
+
+.expense-card-top,
+.expense-card-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.expense-card-top strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 18px;
+}
+
+.expense-card-top svg {
+  color: #176b4d;
+}
+
+.expense-card-total {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.expense-card-meta span {
+  min-height: 28px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #d5ded9;
+  border-radius: 999px;
+  padding: 0 9px;
+  background: #f7faf8;
+  color: #536059;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.expense-card-bars {
+  display: grid;
+  gap: 10px;
+}
+
+.expense-card-bars > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.expense-card-bars span {
+  min-width: 0;
+  color: #62706a;
+  font-size: 13px;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.expense-card-bars strong {
+  font-size: 13px;
+}
+
+.expense-card-bars .bar-track {
+  grid-column: 1 / -1;
 }
 
 .overview-grid {
@@ -1616,6 +1768,8 @@ select:focus {
 :root[data-theme="dark"] .metric-card,
 :root[data-theme="dark"] .mini-stat,
 :root[data-theme="dark"] .month-panel,
+:root[data-theme="dark"] .expenses-hero,
+:root[data-theme="dark"] .expense-period-card,
 :root[data-theme="dark"] .icon-button,
 :root[data-theme="dark"] .secondary-action,
 :root[data-theme="dark"] .theme-toggle,
@@ -1679,17 +1833,20 @@ select:focus {
 }
 
 :root[data-theme="dark"] .currency-trigger,
-:root[data-theme="dark"] .theme-mode-control {
+:root[data-theme="dark"] .theme-mode-control,
+:root[data-theme="dark"] .expenses-mode-control {
   border-color: var(--border);
   background: var(--surface-muted);
   color: var(--text);
 }
 
-:root[data-theme="dark"] .theme-mode-control button {
+:root[data-theme="dark"] .theme-mode-control button,
+:root[data-theme="dark"] .expenses-mode-control button {
   color: var(--muted-strong);
 }
 
-:root[data-theme="dark"] .theme-mode-control button.active {
+:root[data-theme="dark"] .theme-mode-control button.active,
+:root[data-theme="dark"] .expenses-mode-control button.active {
   color: var(--text-strong);
   background: var(--accent-soft-2);
 }
@@ -1732,6 +1889,8 @@ select:focus {
 :root[data-theme="dark"] .panel,
 :root[data-theme="dark"] .mini-stat,
 :root[data-theme="dark"] .month-panel,
+:root[data-theme="dark"] .expenses-hero,
+:root[data-theme="dark"] .expense-period-card,
 :root[data-theme="dark"] .receipt-preview {
   box-shadow: var(--shadow);
 }
@@ -1744,6 +1903,10 @@ select:focus {
 :root[data-theme="dark"] .metric-card span,
 :root[data-theme="dark"] .metric-card small,
 :root[data-theme="dark"] .month-panel p,
+:root[data-theme="dark"] .expenses-hero span,
+:root[data-theme="dark"] .expenses-hero p,
+:root[data-theme="dark"] .expense-card-top span,
+:root[data-theme="dark"] .expense-card-bars span,
 :root[data-theme="dark"] .date-ledger-heading span,
 :root[data-theme="dark"] .category-row span,
 :root[data-theme="dark"] .empty-state,
@@ -1809,8 +1972,15 @@ select:focus {
 :root[data-theme="dark"] .metric-icon,
 :root[data-theme="dark"] .month-panel-copy svg,
 :root[data-theme="dark"] .date-ledger-heading > span,
+:root[data-theme="dark"] .expense-card-top svg,
 :root[data-theme="dark"] .timeline-icon {
   color: var(--accent);
+}
+
+:root[data-theme="dark"] .expense-card-meta span {
+  border-color: var(--border);
+  background: var(--surface-muted);
+  color: var(--muted-strong);
 }
 
 :root[data-theme="dark"] .metric-icon {
@@ -1996,6 +2166,7 @@ select:focus {
 
   .overview-grid,
   .upload-layout,
+  .expense-card-grid,
   .insights-layout,
   .settings-layout {
     grid-template-columns: 1fr;
@@ -2009,6 +2180,7 @@ select:focus {
 @media (max-width: 940px) {
   .auth-shell,
   .metric-grid,
+  .expense-summary-grid,
   .status-grid {
     grid-template-columns: 1fr;
   }
@@ -2027,6 +2199,11 @@ select:focus {
   }
 
   .month-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .expenses-hero {
     align-items: stretch;
     flex-direction: column;
   }
@@ -2085,7 +2262,8 @@ select:focus {
 
   .currency-dropdown,
   .currency-trigger,
-  .theme-mode-control {
+  .theme-mode-control,
+  .expenses-mode-control {
     width: 100%;
   }
 

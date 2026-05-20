@@ -48,7 +48,7 @@ import {
 import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, SummaryItem } from "./types";
 
 type AuthMode = "login" | "register";
-type AppPage = "overview" | "upload" | "receipts" | "insights" | "settings";
+type AppPage = "overview" | "upload" | "expenses" | "receipts" | "insights" | "settings";
 type Theme = "light" | "dark";
 type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "AUD" | "CAD" | "SGD" | "LKR";
 
@@ -68,6 +68,16 @@ type Totals = {
   failed: number;
   processing: number;
   duplicate: number;
+};
+
+type ExpenseCard = {
+  key: string;
+  label: string;
+  periodType: "Month" | "Year";
+  total: number;
+  count: number;
+  topCategory?: string;
+  categories: Array<{ name: string; amount: number }>;
 };
 
 const currencyOptions: { code: CurrencyCode; label: string }[] = [
@@ -92,6 +102,7 @@ const defaultPreferences: WorkspacePreferences = {
 const navItems: Array<{ id: AppPage; label: string; icon: React.ReactNode }> = [
   { id: "overview", label: "Overview", icon: <Home size={18} /> },
   { id: "upload", label: "Upload", icon: <UploadCloud size={18} /> },
+  { id: "expenses", label: "Monthly Expenses", icon: <CalendarDays size={18} /> },
   { id: "receipts", label: "Receipts", icon: <ReceiptText size={18} /> },
   { id: "insights", label: "Insights", icon: <Sparkles size={18} /> },
   { id: "settings", label: "Settings", icon: <Settings size={18} /> }
@@ -105,6 +116,10 @@ const pageCopy: Record<AppPage, { title: string; description: string }> = {
   upload: {
     title: "Upload Center",
     description: "Create receipt records, send files to storage, and queue extraction jobs."
+  },
+  expenses: {
+    title: "Monthly Expenses",
+    description: "Browse spending by receipt date using monthly or yearly expense cards."
   },
   receipts: {
     title: "Receipt Ledger",
@@ -644,6 +659,14 @@ function Dashboard({
             onFiles={handleFiles}
           />
         )}
+        {page === "expenses" && (
+          <ExpensesPage
+            receipts={receiptList}
+            currency={totals.currency}
+            loading={loading}
+            onOpenReceipts={() => setPage("receipts")}
+          />
+        )}
         {page === "receipts" && (
           <ReceiptsPage
             receiptPage={receipts}
@@ -811,6 +834,110 @@ function UploadPage({
         <ReceiptTimeline receipts={receipts.slice(0, 8)} loading={false} />
       </div>
     </section>
+  );
+}
+
+function ExpensesPage({
+  receipts,
+  currency,
+  loading,
+  onOpenReceipts
+}: {
+  receipts: Receipt[];
+  currency: CurrencyCode;
+  loading: boolean;
+  onOpenReceipts: () => void;
+}) {
+  const [mode, setMode] = useState<"monthly" | "yearly">("monthly");
+  const cards = useMemo(() => buildExpenseCards(receipts, mode, currency), [currency, mode, receipts]);
+  const topCard = useMemo(() => [...cards].sort((a, b) => b.total - a.total)[0], [cards]);
+  const totalSpend = cards.reduce((sum, card) => sum + card.total, 0);
+
+  return (
+    <section className="expenses-page">
+      <div className="expenses-hero">
+        <div>
+          <span>Expense calendar</span>
+          <h2>{mode === "monthly" ? "Monthly receipt spending" : "Yearly receipt spending"}</h2>
+          <p>
+            {loading
+              ? "Loading expense periods..."
+              : `${cards.length} ${mode === "monthly" ? "months" : "years"} with completed receipt spend`}
+          </p>
+        </div>
+        <div className="expenses-mode-control" role="group" aria-label="Expense period">
+          <button className={mode === "monthly" ? "active" : ""} type="button" onClick={() => setMode("monthly")}>
+            Monthly
+          </button>
+          <button className={mode === "yearly" ? "active" : ""} type="button" onClick={() => setMode("yearly")}>
+            Yearly
+          </button>
+        </div>
+      </div>
+
+      <section className="expense-summary-grid">
+        <MiniStat label="Total shown" value={money(totalSpend, currency)} />
+        <MiniStat label="Periods" value={String(cards.length)} />
+        <MiniStat label="Top period" value={topCard ? topCard.label : "-"} />
+        <MiniStat label="Top spend" value={topCard ? money(topCard.total, currency) : money(0, currency)} />
+      </section>
+
+      <section className="expense-card-grid">
+        {cards.map((card) => (
+          <ExpensePeriodCard key={card.key} card={card} currency={currency} onOpenReceipts={onOpenReceipts} />
+        ))}
+      </section>
+
+      {!loading && !cards.length && (
+        <div className="panel">
+          <p className="empty-state">No completed expenses yet. Upload receipts and completed totals will appear here.</p>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ExpensePeriodCard({
+  card,
+  currency,
+  onOpenReceipts
+}: {
+  card: ExpenseCard;
+  currency: CurrencyCode;
+  onOpenReceipts: () => void;
+}) {
+  const topCategory = card.topCategory ?? "Uncategorized";
+
+  return (
+    <article className="expense-period-card">
+      <div className="expense-card-top">
+        <div>
+          <span>{card.periodType}</span>
+          <strong>{card.label}</strong>
+        </div>
+        <CalendarDays size={22} />
+      </div>
+      <div className="expense-card-total">{money(card.total, currency)}</div>
+      <div className="expense-card-meta">
+        <span>{card.count} receipts</span>
+        <span>{topCategory}</span>
+      </div>
+      <div className="expense-card-bars">
+        {card.categories.slice(0, 3).map((category) => (
+          <div key={category.name}>
+            <span>{category.name}</span>
+            <strong>{money(category.amount, currency)}</strong>
+            <div className="bar-track">
+              <span style={{ width: `${Math.max((category.amount / Math.max(card.total, 1)) * 100, 6)}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+      <button className="text-action" type="button" onClick={onOpenReceipts}>
+        Open receipts
+        <ChevronRight size={16} />
+      </button>
+    </article>
   );
 }
 
@@ -1744,6 +1871,43 @@ function buildReceiptMonthOptions(receipts: Receipt[]) {
   return Array.from(counts.entries())
     .sort(([a], [b]) => b.localeCompare(a))
     .map(([key, count]) => ({ key, count, label: formatMonthLabel(key) }));
+}
+
+function buildExpenseCards(receipts: Receipt[], mode: "monthly" | "yearly", currency: CurrencyCode): ExpenseCard[] {
+  const completedReceipts = receipts.filter((receipt) => receipt.status === "COMPLETED");
+  const grouped = new Map<string, Receipt[]>();
+
+  completedReceipts.forEach((receipt) => {
+    const key = mode === "monthly" ? receiptMonthKey(receipt) : receiptMonthKey(receipt).slice(0, 4);
+    grouped.set(key, [...(grouped.get(key) ?? []), receipt]);
+  });
+
+  return Array.from(grouped.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, groupReceipts]) => {
+      const categories = summarizeExpenseCategories(groupReceipts);
+      return {
+        key,
+        label: mode === "monthly" ? formatMonthLabel(key) : key,
+        periodType: mode === "monthly" ? "Month" : "Year",
+        total: groupReceipts.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
+        count: groupReceipts.length,
+        topCategory: categories[0]?.name,
+        categories
+      };
+    });
+}
+
+function summarizeExpenseCategories(receipts: Receipt[]) {
+  const totals = new Map<string, number>();
+  receipts.forEach((receipt) => {
+    const category = receipt.merchantCategory ? titleCase(receipt.merchantCategory) : "Uncategorized";
+    totals.set(category, (totals.get(category) ?? 0) + Number(receipt.total ?? 0));
+  });
+
+  return Array.from(totals.entries())
+    .map(([name, amount]) => ({ name, amount }))
+    .sort((a, b) => b.amount - a.amount);
 }
 
 function receiptMonthKey(receipt: Receipt) {
