@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   BarChart3,
   Bell,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -838,19 +839,54 @@ function ReceiptsPage({
   onCorrectReceipt: (receiptId: string, correction: ReceiptCorrectionRequest) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
+  const monthOptions = useMemo(() => buildReceiptMonthOptions(receipts), [receipts]);
+  const [selectedMonth, setSelectedMonth] = useState("all");
   const loadedCount = receipts.length;
   const totalCount = receiptPage?.totalElements ?? totals.count;
   const totalPages = receiptPage?.totalPages ?? 0;
   const pageNumber = (receiptPage?.number ?? 0) + 1;
   const hiddenCount = Math.max(totalCount - loadedCount, 0);
+  const monthlyReceipts = useMemo(
+    () => selectedMonth === "all" ? receipts : receipts.filter((receipt) => receiptMonthKey(receipt) === selectedMonth),
+    [receipts, selectedMonth]
+  );
+  const selectedMonthLabel = selectedMonth === "all" ? "All months" : formatMonthLabel(selectedMonth);
+  const monthlyStats = useMemo(() => summarizeReceipts(monthlyReceipts, totals.currency), [monthlyReceipts, totals.currency]);
+
+  useEffect(() => {
+    if (selectedMonth !== "all" && !monthOptions.some((option) => option.key === selectedMonth)) {
+      setSelectedMonth("all");
+    }
+  }, [monthOptions, selectedMonth]);
 
   return (
     <div className="page-stack">
+      <section className="month-panel">
+        <div className="month-panel-copy">
+          <CalendarDays size={22} />
+          <div>
+            <h2>{selectedMonthLabel}</h2>
+            <p>{monthlyReceipts.length} receipts organized by receipt date</p>
+          </div>
+        </div>
+        <label className="month-select">
+          Month
+          <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+            <option value="all">All months</option>
+            {monthOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label} ({option.count})
+              </option>
+            ))}
+          </select>
+        </label>
+      </section>
+
       <section className="status-grid">
-        <MiniStat label="Completed" value={String(totals.completed)} />
-        <MiniStat label="Processing" value={String(totals.processing)} />
-        <MiniStat label="Duplicates" value={String(totals.duplicate)} />
-        <MiniStat label="Failed" value={String(totals.failed)} tone="danger" />
+        <MiniStat label="Month spend" value={money(monthlyStats.total, monthlyStats.currency)} />
+        <MiniStat label="Receipts" value={String(monthlyStats.count)} />
+        <MiniStat label="Completed" value={String(monthlyStats.completed)} />
+        <MiniStat label="Failed" value={String(monthlyStats.failed)} tone="danger" />
       </section>
 
       {editingReceipt && (
@@ -871,17 +907,17 @@ function ReceiptsPage({
                 ? "Loading receipts..."
                 : hiddenCount
                   ? `Showing ${loadedCount} of ${totalCount} receipts`
-                  : `${totalCount} receipts in this ledger`}
+                  : `${monthlyReceipts.length} receipts in ${selectedMonthLabel.toLowerCase()}`}
             </p>
           </div>
           <div className="ledger-summary" aria-label="Receipt list summary">
             <span>{loading ? "Syncing" : `${loadedCount} loaded`}</span>
-            <span>Newest first</span>
+            <span>Grouped by date</span>
             {totalPages > 1 && <span>Page {pageNumber} of {totalPages}</span>}
           </div>
         </div>
-        <LedgerTable
-          receipts={receipts}
+        <MonthlyLedger
+          receipts={monthlyReceipts}
           loading={loading}
           deletingReceiptId={deletingReceiptId}
           onEditReceipt={onEditReceipt}
@@ -1336,6 +1372,49 @@ function ReceiptTimeline({ receipts, loading }: { receipts: Receipt[]; loading: 
   );
 }
 
+function MonthlyLedger({
+  receipts,
+  loading,
+  deletingReceiptId,
+  onEditReceipt,
+  onDeleteReceipt
+}: {
+  receipts: Receipt[];
+  loading: boolean;
+  deletingReceiptId: string | null;
+  onEditReceipt: (receipt: Receipt) => void;
+  onDeleteReceipt: (receipt: Receipt) => void;
+}) {
+  const groups = useMemo(() => groupReceiptsByDate(receipts), [receipts]);
+
+  if (!loading && !receipts.length) {
+    return <p className="empty-state">No ledger entries for this month.</p>;
+  }
+
+  return (
+    <div className="monthly-ledger">
+      {groups.map((group) => (
+        <section className="date-ledger-group" key={group.key}>
+          <div className="date-ledger-heading">
+            <div>
+              <strong>{formatDate(group.key)}</strong>
+              <span>{group.receipts.length} receipts</span>
+            </div>
+            <span>{money(group.total, group.currency)}</span>
+          </div>
+          <LedgerTable
+            receipts={group.receipts}
+            loading={loading}
+            deletingReceiptId={deletingReceiptId}
+            onEditReceipt={onEditReceipt}
+            onDeleteReceipt={onDeleteReceipt}
+          />
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function LedgerTable({
   receipts,
   loading,
@@ -1655,6 +1734,64 @@ function ToggleRow({
   );
 }
 
+function buildReceiptMonthOptions(receipts: Receipt[]) {
+  const counts = new Map<string, number>();
+  receipts.forEach((receipt) => {
+    const key = receiptMonthKey(receipt);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  });
+
+  return Array.from(counts.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, count]) => ({ key, count, label: formatMonthLabel(key) }));
+}
+
+function receiptMonthKey(receipt: Receipt) {
+  return receiptDateValue(receipt).slice(0, 7);
+}
+
+function receiptDateValue(receipt: Receipt) {
+  return receipt.receiptDate ?? receipt.createdAt.slice(0, 10);
+}
+
+function summarizeReceipts(receipts: Receipt[], currency: CurrencyCode): Totals {
+  const completed = receipts.filter((receipt) => receipt.status === "COMPLETED");
+  return {
+    total: completed.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
+    currency,
+    count: receipts.length,
+    completed: completed.length,
+    failed: receipts.filter((receipt) => receipt.status === "FAILED" || receipt.status === "PERMANENTLY_FAILED").length,
+    processing: receipts.filter((receipt) => receipt.status === "PROCESSING" || receipt.status === "PENDING").length,
+    duplicate: receipts.filter((receipt) => receipt.status === "DUPLICATE").length
+  };
+}
+
+function groupReceiptsByDate(receipts: Receipt[]) {
+  const groups = new Map<string, Receipt[]>();
+  receipts.forEach((receipt) => {
+    const key = receiptDateValue(receipt);
+    groups.set(key, [...(groups.get(key) ?? []), receipt]);
+  });
+
+  return Array.from(groups.entries())
+    .sort(([a], [b]) => b.localeCompare(a))
+    .map(([key, groupReceipts]) => {
+      const completed = groupReceipts.filter((receipt) => receipt.status === "COMPLETED");
+      return {
+        key,
+        receipts: groupReceipts,
+        total: completed.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
+        currency: completed[0]?.currency ?? groupReceipts[0]?.currency ?? "INR"
+      };
+    });
+}
+
+function formatMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
 function normalizeCategories(
   summary: MonthlySummary | SummaryItem[] | Record<string, number> | null,
   insights: InsightsResponse | null
@@ -1711,6 +1848,11 @@ function localeForCurrency(currency: string) {
 }
 
 function formatDate(value: string) {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(year, month - 1, day));
+  }
+
   return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
 }
 
