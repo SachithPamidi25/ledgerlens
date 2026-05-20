@@ -7,8 +7,8 @@ import {
   ChevronRight,
   Clipboard,
   Database,
+  Edit3,
   FileUp,
-  Filter,
   Home,
   Layers3,
   ListChecks,
@@ -23,12 +23,13 @@ import {
   SlidersHorizontal,
   Sparkles,
   Sun,
+  Target,
   TimerReset,
   Trash2,
   UploadCloud,
   WalletCards
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearTokens,
   correctReceipt,
@@ -53,7 +54,9 @@ type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "AUD" | "CAD" | "SGD" | "LKR
 type WorkspacePreferences = {
   openLedgerAfterUpload: boolean;
   liveStatusUpdates: boolean;
-  receiptStatusFilters: Record<ReceiptStatus, boolean>;
+  defaultPage: AppPage;
+  monthlyBudget: number;
+  budgetWarningPercent: number;
 };
 
 type Totals = {
@@ -77,22 +80,12 @@ const currencyOptions: { code: CurrencyCode; label: string }[] = [
   { code: "LKR", label: "LKR" }
 ];
 
-const receiptStatusOptions: { status: ReceiptStatus; label: string }[] = [
-  { status: "COMPLETED", label: "Completed" },
-  { status: "PROCESSING", label: "Processing" },
-  { status: "PENDING", label: "Pending" },
-  { status: "DUPLICATE", label: "Duplicates" },
-  { status: "FAILED", label: "Failed" },
-  { status: "PERMANENTLY_FAILED", label: "Permanent failures" }
-];
-
 const defaultPreferences: WorkspacePreferences = {
   openLedgerAfterUpload: true,
   liveStatusUpdates: true,
-  receiptStatusFilters: receiptStatusOptions.reduce(
-    (filters, option) => ({ ...filters, [option.status]: true }),
-    {} as Record<ReceiptStatus, boolean>
-  )
+  defaultPage: "overview",
+  monthlyBudget: 0,
+  budgetWarningPercent: 80
 };
 
 const navItems: Array<{ id: AppPage; label: string; icon: React.ReactNode }> = [
@@ -207,6 +200,14 @@ function isCurrencyCode(value: unknown): value is CurrencyCode {
   return typeof value === "string" && currencyOptions.some((currency) => currency.code === value);
 }
 
+function isAppPage(value: unknown): value is AppPage {
+  return typeof value === "string" && navItems.some((item) => item.id === value);
+}
+
+function isStartupPage(value: unknown): value is AppPage {
+  return isAppPage(value) && value !== "settings";
+}
+
 function readWorkspacePreferences(): WorkspacePreferences {
   const saved = localStorage.getItem("ledgerlens.preferences");
   if (!saved) return defaultPreferences;
@@ -216,10 +217,12 @@ function readWorkspacePreferences(): WorkspacePreferences {
     return {
       openLedgerAfterUpload: parsed.openLedgerAfterUpload ?? defaultPreferences.openLedgerAfterUpload,
       liveStatusUpdates: parsed.liveStatusUpdates ?? defaultPreferences.liveStatusUpdates,
-      receiptStatusFilters: {
-        ...defaultPreferences.receiptStatusFilters,
-        ...(parsed.receiptStatusFilters ?? {})
-      }
+      defaultPage: isStartupPage(parsed.defaultPage) ? parsed.defaultPage : defaultPreferences.defaultPage,
+      monthlyBudget: typeof parsed.monthlyBudget === "number" ? parsed.monthlyBudget : defaultPreferences.monthlyBudget,
+      budgetWarningPercent:
+        typeof parsed.budgetWarningPercent === "number"
+          ? parsed.budgetWarningPercent
+          : defaultPreferences.budgetWarningPercent
     };
   } catch {
     return defaultPreferences;
@@ -344,7 +347,8 @@ function Dashboard({
   onToggleTheme: () => void;
   onSignedOut: () => void;
 }) {
-  const [page, setPage] = useState<AppPage>("overview");
+  const [preferences, setPreferences] = useState<WorkspacePreferences>(() => readWorkspacePreferences());
+  const [page, setPage] = useState<AppPage>(() => preferences.defaultPage);
   const [receipts, setReceipts] = useState<Page<Receipt> | null>(null);
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
@@ -361,7 +365,6 @@ function Dashboard({
     const saved = localStorage.getItem("ledgerlens.currency");
     return isCurrencyCode(saved) ? saved : "INR";
   });
-  const [preferences, setPreferences] = useState<WorkspacePreferences>(() => readWorkspacePreferences());
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -449,10 +452,6 @@ function Dashboard({
   }, [activeReceiptIds.length, receipts]);
 
   const receiptList = receipts?.content ?? [];
-  const filteredReceiptList = useMemo(
-    () => receiptList.filter((receipt) => preferences.receiptStatusFilters[receipt.status]),
-    [preferences.receiptStatusFilters, receiptList]
-  );
   const totals = useMemo<Totals>(() => {
     const completedReceipts = receiptList.filter((receipt) => receipt.status === "COMPLETED");
     const completedTotal = receiptList.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0);
@@ -559,19 +558,10 @@ function Dashboard({
     setPreferences((current) => ({ ...current, [key]: value }));
   }
 
-  function updateReceiptStatusFilter(status: ReceiptStatus, enabled: boolean) {
-    setPreferences((current) => ({
-      ...current,
-      receiptStatusFilters: {
-        ...current.receiptStatusFilters,
-        [status]: enabled
-      }
-    }));
-  }
-
   function resetBrowserSettings() {
     setDisplayCurrency("INR");
     setPreferences(defaultPreferences);
+    setPage(defaultPreferences.defaultPage);
   }
 
   return (
@@ -656,10 +646,9 @@ function Dashboard({
         {page === "receipts" && (
           <ReceiptsPage
             receiptPage={receipts}
-            receipts={filteredReceiptList}
+            receipts={receiptList}
             loading={loading}
             totals={totals}
-            visibleCount={filteredReceiptList.length}
             deletingReceiptId={deletingReceiptId}
             editingReceipt={editingReceipt}
             correctingReceiptId={correctingReceiptId}
@@ -680,7 +669,6 @@ function Dashboard({
             onToggleTheme={onToggleTheme}
             onCurrencyChange={setDisplayCurrency}
             onPreferenceChange={updatePreference}
-            onReceiptStatusFilterChange={updateReceiptStatusFilter}
             onResetBrowserSettings={resetBrowserSettings}
             onRefresh={loadData}
             onLogout={handleLogout}
@@ -830,7 +818,6 @@ function ReceiptsPage({
   receipts,
   loading,
   totals,
-  visibleCount,
   deletingReceiptId,
   editingReceipt,
   correctingReceiptId,
@@ -843,7 +830,6 @@ function ReceiptsPage({
   receipts: Receipt[];
   loading: boolean;
   totals: Totals;
-  visibleCount: number;
   deletingReceiptId: string | null;
   editingReceipt: Receipt | null;
   correctingReceiptId: string | null;
@@ -867,6 +853,15 @@ function ReceiptsPage({
         <MiniStat label="Failed" value={String(totals.failed)} tone="danger" />
       </section>
 
+      {editingReceipt && (
+        <CorrectionPanel
+          receipt={editingReceipt}
+          saving={correctingReceiptId === editingReceipt.id}
+          onCancel={onCancelEdit}
+          onSubmit={onCorrectReceipt}
+        />
+      )}
+
       <section className="panel ledger-panel">
         <div className="panel-heading ledger-panel-heading">
           <div>
@@ -876,9 +871,7 @@ function ReceiptsPage({
                 ? "Loading receipts..."
                 : hiddenCount
                   ? `Showing ${loadedCount} of ${totalCount} receipts`
-                  : visibleCount < totalCount
-                    ? `${visibleCount} receipts visible after filters`
-                    : `${totalCount} receipts in this ledger`}
+                  : `${totalCount} receipts in this ledger`}
             </p>
           </div>
           <div className="ledger-summary" aria-label="Receipt list summary">
@@ -895,15 +888,6 @@ function ReceiptsPage({
           onDeleteReceipt={onDeleteReceipt}
         />
       </section>
-
-      {editingReceipt && (
-        <CorrectionPanel
-          receipt={editingReceipt}
-          saving={correctingReceiptId === editingReceipt.id}
-          onCancel={onCancelEdit}
-          onSubmit={onCorrectReceipt}
-        />
-      )}
     </div>
   );
 }
@@ -964,7 +948,6 @@ function SettingsPage({
   onToggleTheme,
   onCurrencyChange,
   onPreferenceChange,
-  onReceiptStatusFilterChange,
   onResetBrowserSettings,
   onRefresh,
   onLogout,
@@ -978,14 +961,12 @@ function SettingsPage({
   onToggleTheme: () => void;
   onCurrencyChange: (currency: CurrencyCode) => void;
   onPreferenceChange: <K extends keyof WorkspacePreferences>(key: K, value: WorkspacePreferences[K]) => void;
-  onReceiptStatusFilterChange: (status: ReceiptStatus, enabled: boolean) => void;
   onResetBrowserSettings: () => void;
   onRefresh: () => void;
   onLogout: () => void;
   onDeleteLedger: () => void;
 }) {
   const [copied, setCopied] = useState(false);
-  const enabledFilters = receiptStatusOptions.filter((option) => preferences.receiptStatusFilters[option.status]).length;
   const tokenPresent = Boolean(getAccessToken());
 
   async function copyDiagnostics() {
@@ -995,9 +976,9 @@ function SettingsPage({
       displayCurrency,
       liveStatusUpdates: preferences.liveStatusUpdates,
       openLedgerAfterUpload: preferences.openLedgerAfterUpload,
-      enabledReceiptFilters: receiptStatusOptions
-        .filter((option) => preferences.receiptStatusFilters[option.status])
-        .map((option) => option.status),
+      defaultPage: preferences.defaultPage,
+      monthlyBudget: preferences.monthlyBudget,
+      budgetWarningPercent: preferences.budgetWarningPercent,
       session: tokenPresent ? "active" : "missing"
     };
 
@@ -1046,6 +1027,31 @@ function SettingsPage({
       <div className="panel">
         <div className="panel-heading">
           <div>
+            <h2>Startup</h2>
+            <p>Pick the first workspace view for this browser.</p>
+          </div>
+          <Home size={22} />
+        </div>
+        <div className="startup-grid">
+          {navItems
+            .filter((item) => item.id !== "settings")
+            .map((item) => (
+              <button
+                className={preferences.defaultPage === item.id ? "startup-option active" : "startup-option"}
+                key={item.id}
+                type="button"
+                onClick={() => onPreferenceChange("defaultPage", item.id)}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
             <h2>Upload Behavior</h2>
             <p>Control what happens after receipt files are queued.</p>
           </div>
@@ -1055,41 +1061,27 @@ function SettingsPage({
           <ToggleRow
             icon={<ListChecks size={18} />}
             label="Open ledger after upload"
-            detail="Jump to Receipts when a batch finishes."
+            detail="Jump to Receipts when a batch finishes"
             checked={preferences.openLedgerAfterUpload}
             onChange={(checked) => onPreferenceChange("openLedgerAfterUpload", checked)}
           />
           <ToggleRow
             icon={<ShieldCheck size={18} />}
             label="Live processing updates"
-            detail="Use SSE status streams while receipts are processing."
+            detail="Listen for status changes while receipts process"
             checked={preferences.liveStatusUpdates}
             onChange={(checked) => onPreferenceChange("liveStatusUpdates", checked)}
           />
         </div>
       </div>
 
-      <div className="panel">
-        <div className="panel-heading">
-          <div>
-            <h2>Receipt Filters</h2>
-            <p>{enabledFilters} status groups visible in the ledger.</p>
-          </div>
-          <Filter size={22} />
-        </div>
-        <div className="filter-grid">
-          {receiptStatusOptions.map((option) => (
-            <label className="filter-chip" key={option.status}>
-              <input
-                type="checkbox"
-                checked={preferences.receiptStatusFilters[option.status]}
-                onChange={(event) => onReceiptStatusFilterChange(option.status, event.target.checked)}
-              />
-              <span>{option.label}</span>
-            </label>
-          ))}
-        </div>
-      </div>
+      <BudgetSettings
+        budget={preferences.monthlyBudget}
+        warningPercent={preferences.budgetWarningPercent}
+        totals={totals}
+        onBudgetChange={(value) => onPreferenceChange("monthlyBudget", value)}
+        onWarningPercentChange={(value) => onPreferenceChange("budgetWarningPercent", value)}
+      />
 
       <div className="panel">
         <div className="panel-heading">
@@ -1165,6 +1157,84 @@ function SettingsPage({
         </div>
       </div>
     </section>
+  );
+}
+
+function BudgetSettings({
+  budget,
+  warningPercent,
+  totals,
+  onBudgetChange,
+  onWarningPercentChange
+}: {
+  budget: number;
+  warningPercent: number;
+  totals: Totals;
+  onBudgetChange: (value: number) => void;
+  onWarningPercentChange: (value: number) => void;
+}) {
+  const budgetEnabled = budget > 0;
+  const usedPercent = budgetEnabled ? Math.min((totals.total / budget) * 100, 999) : 0;
+  const meterPercent = Math.min(usedPercent, 100);
+  const overBudget = budgetEnabled && totals.total > budget;
+  const nearLimit = budgetEnabled && usedPercent >= warningPercent;
+  const stateLabel = !budgetEnabled
+    ? "No target set"
+    : overBudget
+      ? "Over budget"
+      : nearLimit
+        ? "Near limit"
+        : "On track";
+
+  return (
+    <div className="panel budget-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Budget Guardrail</h2>
+          <p>Track verified spend against a monthly target.</p>
+        </div>
+        <Target size={22} />
+      </div>
+
+      <div className="budget-editor">
+        <label>
+          Monthly target
+          <input
+            type="number"
+            min="0"
+            step="1"
+            value={budget || ""}
+            placeholder="Set amount"
+            onChange={(event) => onBudgetChange(Number(event.target.value || 0))}
+          />
+        </label>
+        <label>
+          Warning point
+          <select value={warningPercent} onChange={(event) => onWarningPercentChange(Number(event.target.value))}>
+            {[60, 70, 80, 90, 100].map((percent) => (
+              <option key={percent} value={percent}>
+                {percent}%
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <div className={`budget-meter ${overBudget ? "over" : nearLimit ? "warn" : ""}`}>
+        <div>
+          <span>{stateLabel}</span>
+          <strong>{budgetEnabled ? `${Math.round(usedPercent)}% used` : "Set a target"}</strong>
+        </div>
+        <div className="budget-track">
+          <span style={{ width: `${meterPercent}%` }} />
+        </div>
+        <small>
+          {budgetEnabled
+            ? `${money(totals.total, totals.currency)} of ${money(budget, totals.currency)}`
+            : "Budget tracking starts after you enter an amount."}
+        </small>
+      </div>
+    </div>
   );
 }
 
@@ -1320,14 +1390,15 @@ function LedgerTable({
           <JournalPreview receipt={receipt} amount={amount} running={running} />
           <div className="row-actions">
             <button
-              className="icon-button"
+              className="row-action-button"
               type="button"
               onClick={() => onEditReceipt(receipt)}
               disabled={receipt.status !== "COMPLETED"}
               aria-label={`Correct ${receipt.vendor || receipt.originalFilename}`}
-              title="Correct extracted fields"
+              title={receipt.status === "COMPLETED" ? "Edit ledger entry" : "Only completed receipts can be edited"}
             >
-              <RefreshCcw size={16} />
+              <Edit3 size={16} />
+              <span>Edit</span>
             </button>
             <button
               className="icon-button danger-icon"
@@ -1357,12 +1428,17 @@ function CorrectionPanel({
   onCancel: () => void;
   onSubmit: (receiptId: string, correction: ReceiptCorrectionRequest) => void;
 }) {
+  const panelRef = useRef<HTMLElement | null>(null);
   const [vendor, setVendor] = useState(receipt.vendor ?? "");
   const [merchantCategory, setMerchantCategory] = useState(receipt.merchantCategory ?? "OTHER");
   const [receiptDate, setReceiptDate] = useState(receipt.receiptDate ?? "");
   const [total, setTotal] = useState(String(receipt.total ?? ""));
   const [currency, setCurrency] = useState(receipt.currency ?? "INR");
   const [reason, setReason] = useState("");
+
+  useEffect(() => {
+    panelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [receipt.id]);
 
   function submit(event: FormEvent) {
     event.preventDefault();
@@ -1377,12 +1453,13 @@ function CorrectionPanel({
   }
 
   return (
-    <section className="panel correction-panel">
+    <section className="panel correction-panel" ref={panelRef}>
       <div className="panel-heading">
         <div>
-          <h2>Correct Receipt</h2>
-          <p>{receipt.originalFilename}</p>
+          <h2>Edit Ledger Entry</h2>
+          <p>{receipt.vendor || receipt.originalFilename}</p>
         </div>
+        <Edit3 size={22} />
       </div>
       <form className="correction-form" onSubmit={submit}>
         <label>
@@ -1420,7 +1497,7 @@ function CorrectionPanel({
             Cancel
           </button>
           <button className="primary-action compact" type="submit" disabled={saving}>
-            {saving ? "Posting..." : "Post correction"}
+            {saving ? "Saving..." : "Save ledger edit"}
           </button>
         </div>
       </form>
