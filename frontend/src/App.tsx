@@ -76,6 +76,8 @@ type ExpenseCard = {
   periodType: "Month" | "Year";
   total: number;
   count: number;
+  average: number;
+  latestDate: string;
   topCategory?: string;
   categories: Array<{ name: string; amount: number }>;
 };
@@ -921,6 +923,16 @@ function ExpensePeriodCard({
       <div className="expense-card-meta">
         <span>{card.count} receipts</span>
         <span>{topCategory}</span>
+      </div>
+      <div className="expense-card-kpis">
+        <div>
+          <span>Average receipt</span>
+          <strong>{money(card.average, currency)}</strong>
+        </div>
+        <div>
+          <span>Latest receipt</span>
+          <strong>{formatDate(card.latestDate)}</strong>
+        </div>
       </div>
       <div className="expense-card-bars">
         {card.categories.slice(0, 3).map((category) => (
@@ -1892,6 +1904,8 @@ function buildExpenseCards(receipts: Receipt[], mode: "monthly" | "yearly", curr
         periodType: mode === "monthly" ? "Month" : "Year",
         total: groupReceipts.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
         count: groupReceipts.length,
+        average: groupReceipts.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0) / Math.max(groupReceipts.length, 1),
+        latestDate: groupReceipts.map(receiptDateValue).sort((a, b) => b.localeCompare(a))[0],
         topCategory: categories[0]?.name,
         categories
       };
