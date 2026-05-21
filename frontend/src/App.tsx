@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Clipboard,
   Database,
+  Download,
   Edit3,
   FileUp,
   Home,
@@ -1031,6 +1032,10 @@ function ReceiptsPage({
               ))}
             </select>
           </label>
+          <button className="secondary-action compact-control" type="button" onClick={() => exportReceiptsCsv(visibleReceipts)} disabled={!visibleReceipts.length}>
+            <Download size={16} />
+            Export CSV
+          </button>
         </div>
       </section>
 
@@ -1979,6 +1984,31 @@ function filterReceipts(receipts: Receipt[], query: string) {
 
     return haystack.includes(term);
   });
+}
+
+function exportReceiptsCsv(receipts: Receipt[]) {
+  const headers = ["Date", "Vendor", "Filename", "Category", "Status", "Total", "Currency"];
+  const rows = receipts.map((receipt) => [
+    receiptDateValue(receipt),
+    receipt.vendor ?? "",
+    receipt.originalFilename,
+    receipt.merchantCategory ?? "",
+    receipt.status,
+    receipt.total ?? "",
+    receipt.currency ?? ""
+  ]);
+  const csv = [headers, ...rows]
+    .map((row) => row.map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`).join(","))
+    .join("\n");
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `ledgerlens-receipts-${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function groupReceiptsByDate(receipts: Receipt[]) {

@@ -1449,6 +1449,13 @@ select:focus {
   padding: 0 16px;
 }
 
+.compact-control {
+  min-height: 48px;
+  align-self: end;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
 .journal-lines {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) 92px 92px;
