@@ -19,6 +19,7 @@ import {
   ReceiptText,
   RefreshCcw,
   RotateCcw,
+  Search,
   Settings,
   ShieldCheck,
   SlidersHorizontal,
@@ -980,6 +981,7 @@ function ReceiptsPage({
 }) {
   const monthOptions = useMemo(() => buildReceiptMonthOptions(receipts), [receipts]);
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [query, setQuery] = useState("");
   const loadedCount = receipts.length;
   const totalCount = receiptPage?.totalElements ?? totals.count;
   const totalPages = receiptPage?.totalPages ?? 0;
@@ -989,8 +991,9 @@ function ReceiptsPage({
     () => selectedMonth === "all" ? receipts : receipts.filter((receipt) => receiptMonthKey(receipt) === selectedMonth),
     [receipts, selectedMonth]
   );
+  const visibleReceipts = useMemo(() => filterReceipts(monthlyReceipts, query), [monthlyReceipts, query]);
   const selectedMonthLabel = selectedMonth === "all" ? "All months" : formatMonthLabel(selectedMonth);
-  const monthlyStats = useMemo(() => summarizeReceipts(monthlyReceipts, totals.currency), [monthlyReceipts, totals.currency]);
+  const monthlyStats = useMemo(() => summarizeReceipts(visibleReceipts, totals.currency), [visibleReceipts, totals.currency]);
 
   useEffect(() => {
     if (selectedMonth !== "all" && !monthOptions.some((option) => option.key === selectedMonth)) {
@@ -1005,20 +1008,30 @@ function ReceiptsPage({
           <CalendarDays size={22} />
           <div>
             <h2>{selectedMonthLabel}</h2>
-            <p>{monthlyReceipts.length} receipts organized by receipt date</p>
+            <p>{visibleReceipts.length} receipts organized by receipt date</p>
           </div>
         </div>
-        <label className="month-select">
-          Month
-          <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
-            <option value="all">All months</option>
-            {monthOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label} ({option.count})
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="ledger-controls">
+          <label className="ledger-search">
+            <Search size={17} />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search vendor, category, status..."
+            />
+          </label>
+          <label className="month-select">
+            Month
+            <select value={selectedMonth} onChange={(event) => setSelectedMonth(event.target.value)}>
+              <option value="all">All months</option>
+              {monthOptions.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label} ({option.count})
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
       </section>
 
       <section className="status-grid">
@@ -1046,7 +1059,7 @@ function ReceiptsPage({
                 ? "Loading receipts..."
                 : hiddenCount
                   ? `Showing ${loadedCount} of ${totalCount} receipts`
-                  : `${monthlyReceipts.length} receipts in ${selectedMonthLabel.toLowerCase()}`}
+                  : `${visibleReceipts.length} receipts in ${selectedMonthLabel.toLowerCase()}`}
             </p>
           </div>
           <div className="ledger-summary" aria-label="Receipt list summary">
@@ -1056,7 +1069,7 @@ function ReceiptsPage({
           </div>
         </div>
         <MonthlyLedger
-          receipts={monthlyReceipts}
+          receipts={visibleReceipts}
           loading={loading}
           deletingReceiptId={deletingReceiptId}
           onEditReceipt={onEditReceipt}
@@ -1943,6 +1956,29 @@ function summarizeReceipts(receipts: Receipt[], currency: CurrencyCode): Totals 
     processing: receipts.filter((receipt) => receipt.status === "PROCESSING" || receipt.status === "PENDING").length,
     duplicate: receipts.filter((receipt) => receipt.status === "DUPLICATE").length
   };
+}
+
+function filterReceipts(receipts: Receipt[], query: string) {
+  const term = query.trim().toLowerCase();
+  if (!term) return receipts;
+
+  return receipts.filter((receipt) => {
+    const haystack = [
+      receipt.vendor,
+      receipt.originalFilename,
+      receipt.merchantCategory,
+      receipt.status,
+      receipt.receiptDate,
+      receipt.createdAt,
+      receipt.total,
+      receipt.currency
+    ]
+      .filter((value) => value !== null && value !== undefined)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(term);
+  });
 }
 
 function groupReceiptsByDate(receipts: Receipt[]) {

@@ -734,6 +734,32 @@ select:focus {
   width: min(260px, 100%);
 }
 
+.ledger-controls {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  gap: 12px;
+  min-width: min(560px, 100%);
+}
+
+.ledger-search {
+  position: relative;
+  flex: 1;
+  min-width: 240px;
+}
+
+.ledger-search svg {
+  position: absolute;
+  left: 13px;
+  bottom: 15px;
+  color: #62706a;
+  pointer-events: none;
+}
+
+.ledger-search input {
+  padding-left: 40px;
+}
+
 .expenses-page {
   gap: 16px;
 }
@@ -2245,6 +2271,16 @@ select:focus {
   .month-panel {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .ledger-controls {
+    align-items: stretch;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  .ledger-search {
+    min-width: 0;
   }
 
   .expenses-hero {
