@@ -45,6 +45,8 @@ The project is built around a production-inspired backend flow: direct-to-object
 - Streams receipt status updates to the frontend with Redis pub/sub and Server-Sent Events.
 - Builds spending summaries by category and merchant.
 - Generates AI-powered spending insights over recent receipt history.
+- Exposes receipt status and monthly/yearly expense period summaries for dashboard analytics.
+- Supports month-aware receipt browsing, ledger search, and CSV export in the React frontend.
 - Includes a k6 load-test script for API throughput and latency checks.
 
 ## Architecture Flow
@@ -166,6 +168,16 @@ When a receipt is completed, LedgerLens creates a balanced journal entry:
 - Credit the cash/bank account.
 
 The ledger service checks that total debits and credits match before saving the journal entry.
+
+### Receipt Analytics
+
+LedgerLens exposes lightweight authenticated analytics endpoints for dashboard and reporting views:
+
+- `GET /api/receipts/status-summary` returns receipt counts by lifecycle state plus completed spend.
+- `GET /api/receipts/expense-periods?mode=monthly` returns completed expense totals grouped by receipt month.
+- `GET /api/receipts/expense-periods?mode=yearly` returns completed expense totals grouped by receipt year.
+
+The frontend also provides a receipt-date ledger view, search across loaded receipts, and CSV export for the active filtered ledger view.
 
 ## Reliability Patterns
 
