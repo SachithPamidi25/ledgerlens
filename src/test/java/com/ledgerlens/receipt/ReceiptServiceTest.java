@@ -18,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -48,6 +49,47 @@ class ReceiptServiceTest {
                 .hasMessageContaining("Unsupported receipt file type");
 
         verifyNoInteractions(storageService, receiptRepository);
+    }
+
+    @Test
+    void summarizeStatuses_countsReceiptStatesAndCompletedSpend() {
+        UUID userId = UUID.randomUUID();
+        Receipt completed = receiptWithStatus(ReceiptStatus.COMPLETED, "12.50");
+        Receipt processing = receiptWithStatus(ReceiptStatus.PROCESSING, null);
+        Receipt pending = receiptWithStatus(ReceiptStatus.PENDING, null);
+        Receipt failed = receiptWithStatus(ReceiptStatus.FAILED, null);
+        Receipt duplicate = receiptWithStatus(ReceiptStatus.DUPLICATE, null);
+
+        when(receiptRepository.findAllByUserId(userId))
+                .thenReturn(List.of(completed, processing, pending, failed, duplicate));
+
+        ReceiptStatusSummaryResponse summary = receiptService.summarizeStatuses(userId);
+
+        assertThat(summary.total()).isEqualTo(5);
+        assertThat(summary.completed()).isEqualTo(1);
+        assertThat(summary.processing()).isEqualTo(2);
+        assertThat(summary.failed()).isEqualTo(1);
+        assertThat(summary.duplicate()).isEqualTo(1);
+        assertThat(summary.completedSpend()).isEqualByComparingTo("12.50");
+    }
+
+    @Test
+    void summarizeExpensePeriods_groupsCompletedReceiptsByMonth() {
+        UUID userId = UUID.randomUUID();
+        Receipt juneCoffee = completedReceiptOn(LocalDate.of(2026, 6, 2), "8.50");
+        Receipt juneFood = completedReceiptOn(LocalDate.of(2026, 6, 10), "12.00");
+        Receipt mayTransport = completedReceiptOn(LocalDate.of(2026, 5, 20), "5.25");
+
+        when(receiptRepository.findCompletedForSummary(userId))
+                .thenReturn(List.of(juneCoffee, juneFood, mayTransport));
+
+        List<ReceiptExpensePeriodResponse> periods = receiptService.summarizeExpensePeriods(userId, "monthly");
+
+        assertThat(periods).hasSize(2);
+        assertThat(periods.getFirst().key()).isEqualTo("2026-06");
+        assertThat(periods.getFirst().label()).isEqualTo("June 2026");
+        assertThat(periods.getFirst().receiptCount()).isEqualTo(2);
+        assertThat(periods.getFirst().total()).isEqualByComparingTo("20.50");
     }
 
     @Test
@@ -109,5 +151,20 @@ class ReceiptServiceTest {
         InOrder inOrder = inOrder(ledgerPostingService);
         inOrder.verify(ledgerPostingService).reverseEntry(activeEntry, request.reason());
         inOrder.verify(ledgerPostingService).postReceiptCorrection(receipt, reversal, request.reason());
+    }
+
+    private Receipt receiptWithStatus(ReceiptStatus status, String total) {
+        Receipt receipt = new Receipt();
+        receipt.setStatus(status);
+        if (total != null) {
+            receipt.setTotal(new BigDecimal(total));
+        }
+        return receipt;
+    }
+
+    private Receipt completedReceiptOn(LocalDate date, String total) {
+        Receipt receipt = receiptWithStatus(ReceiptStatus.COMPLETED, total);
+        receipt.setReceiptDate(date);
+        return receipt;
     }
 }
