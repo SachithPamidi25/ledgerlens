@@ -188,7 +188,7 @@ public class ReceiptService {
 
     @Transactional(readOnly = true)
     public List<ReceiptExpensePeriodResponse> summarizeExpensePeriods(UUID userId, String mode) {
-        boolean yearly = "yearly".equalsIgnoreCase(mode);
+        boolean yearly = normalizeExpensePeriodMode(mode);
         Map<String, List<Receipt>> receiptsByPeriod = receiptRepository.findCompletedForSummary(userId)
                 .stream()
                 .collect(Collectors.groupingBy(receipt -> yearly
@@ -200,6 +200,16 @@ public class ReceiptService {
                 .map(entry -> toExpensePeriodResponse(entry.getKey(), entry.getValue(), yearly))
                 .sorted(Comparator.comparing(ReceiptExpensePeriodResponse::key).reversed())
                 .toList();
+    }
+
+    private boolean normalizeExpensePeriodMode(String mode) {
+        if (mode == null || mode.isBlank() || "monthly".equalsIgnoreCase(mode)) {
+            return false;
+        }
+        if ("yearly".equalsIgnoreCase(mode)) {
+            return true;
+        }
+        throw new IllegalArgumentException("Expense period mode must be monthly or yearly");
     }
 
     private ReceiptExpensePeriodResponse toExpensePeriodResponse(String key, List<Receipt> receipts, boolean yearly) {

@@ -93,6 +93,13 @@ class ReceiptServiceTest {
     }
 
     @Test
+    void summarizeExpensePeriods_rejectsUnsupportedMode() {
+        assertThatThrownBy(() -> receiptService.summarizeExpensePeriods(UUID.randomUUID(), "weekly"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("monthly or yearly");
+    }
+
+    @Test
     void correctReceipt_reversesOriginalEntryAndPostsCorrection() {
         UUID userId = UUID.randomUUID();
         UUID receiptId = UUID.randomUUID();
