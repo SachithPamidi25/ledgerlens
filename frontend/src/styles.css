@@ -758,6 +758,21 @@ select:focus {
 
 .ledger-search input {
   padding-left: 40px;
+  padding-right: 68px;
+}
+
+.ledger-search button {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  min-height: 32px;
+  border: 0;
+  border-radius: 6px;
+  padding: 0 10px;
+  background: #edf4f0;
+  color: #176b4d;
+  font-size: 12px;
+  font-weight: 900;
 }
 
 .expenses-page {
@@ -1868,6 +1883,11 @@ select:focus {
 :root[data-theme="dark"] .startup-option:hover,
 :root[data-theme="dark"] .startup-option.active {
   background: var(--accent-soft-2);
+}
+
+:root[data-theme="dark"] .ledger-search button {
+  background: var(--accent-soft-2);
+  color: var(--accent);
 }
 
 :root[data-theme="dark"] .budget-meter span,

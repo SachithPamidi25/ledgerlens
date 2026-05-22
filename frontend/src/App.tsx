@@ -1020,6 +1020,11 @@ function ReceiptsPage({
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search vendor, category, status..."
             />
+            {query && (
+              <button type="button" onClick={() => setQuery("")} aria-label="Clear receipt search">
+                Clear
+              </button>
+            )}
           </label>
           <label className="month-select">
             Month
@@ -1068,7 +1073,8 @@ function ReceiptsPage({
             </p>
           </div>
           <div className="ledger-summary" aria-label="Receipt list summary">
-            <span>{loading ? "Syncing" : `${loadedCount} loaded`}</span>
+          <span>{loading ? "Syncing" : `${loadedCount} loaded`}</span>
+            {query && <span>{visibleReceipts.length} search matches</span>}
             <span>Grouped by date</span>
             {totalPages > 1 && <span>Page {pageNumber} of {totalPages}</span>}
           </div>
