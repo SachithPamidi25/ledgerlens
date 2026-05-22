@@ -1,4 +1,14 @@
-import type { AuthResponse, InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, UploadUrlResponse } from "./types";
+import type {
+  AuthResponse,
+  InsightsResponse,
+  MonthlySummary,
+  Page,
+  Receipt,
+  ReceiptCorrectionRequest,
+  ReceiptExpensePeriod,
+  ReceiptStatusSummary,
+  UploadUrlResponse
+} from "./types";
 
 const ACCESS_TOKEN_KEY = "ledgerlens.accessToken";
 const REFRESH_TOKEN_KEY = "ledgerlens.refreshToken";
@@ -129,6 +139,14 @@ export async function logout() {
 
 export function getReceipts() {
   return request<Page<Receipt>>("/api/receipts?size=100");
+}
+
+export function getReceiptStatusSummary() {
+  return request<ReceiptStatusSummary>("/api/receipts/status-summary");
+}
+
+export function getReceiptExpensePeriods(mode: "monthly" | "yearly" = "monthly") {
+  return request<ReceiptExpensePeriod[]>(`/api/receipts/expense-periods?mode=${mode}`);
 }
 
 export function deleteReceipt(id: string) {

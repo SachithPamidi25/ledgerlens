@@ -92,6 +92,23 @@ export type InsightsResponse = {
   generatedAt: string;
 };
 
+export type ReceiptStatusSummary = {
+  total: number;
+  completed: number;
+  processing: number;
+  failed: number;
+  duplicate: number;
+  completedSpend: number;
+};
+
+export type ReceiptExpensePeriod = {
+  key: string;
+  label: string;
+  periodType: "Month" | "Year";
+  receiptCount: number;
+  total: number;
+};
+
 export type UploadUrlResponse = {
   receiptId: string;
   uploadUrl: string;
