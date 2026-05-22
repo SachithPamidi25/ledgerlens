@@ -60,6 +60,13 @@ public class ReceiptController {
         return ResponseEntity.ok(receiptService.summarizeStatuses(principal.userId()));
     }
 
+    @GetMapping("/expense-periods")
+    public ResponseEntity<?> getExpensePeriods(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam(defaultValue = "monthly") String mode) {
+        return ResponseEntity.ok(receiptService.summarizeExpensePeriods(principal.userId(), mode));
+    }
+
     @PatchMapping("/{id}/correction")
     public ResponseEntity<?> correctReceipt(
             @AuthenticationPrincipal UserPrincipal principal,

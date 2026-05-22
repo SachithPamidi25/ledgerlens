@@ -20,11 +20,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.format.DateTimeFormatter;
+import java.time.format.TextStyle;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -32,6 +37,7 @@ import java.util.concurrent.TimeUnit;
 public class ReceiptService {
     private static final Set<String> SUPPORTED_RECEIPT_EXTENSIONS =
             Set.of("png", "jpg", "jpeg", "webp", "gif");
+    private static final DateTimeFormatter MONTH_KEY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final ReceiptRepository receiptRepository;
     private final StorageService storageService;
@@ -178,6 +184,41 @@ public class ReceiptService {
                 duplicate,
                 completedSpend
         );
+    }
+
+    @Transactional(readOnly = true)
+    public List<ReceiptExpensePeriodResponse> summarizeExpensePeriods(UUID userId, String mode) {
+        boolean yearly = "yearly".equalsIgnoreCase(mode);
+        Map<String, List<Receipt>> receiptsByPeriod = receiptRepository.findCompletedForSummary(userId)
+                .stream()
+                .collect(Collectors.groupingBy(receipt -> yearly
+                        ? String.valueOf(receipt.getReceiptDate().getYear())
+                        : receipt.getReceiptDate().format(MONTH_KEY_FORMATTER)));
+
+        return receiptsByPeriod.entrySet()
+                .stream()
+                .map(entry -> toExpensePeriodResponse(entry.getKey(), entry.getValue(), yearly))
+                .sorted(Comparator.comparing(ReceiptExpensePeriodResponse::key).reversed())
+                .toList();
+    }
+
+    private ReceiptExpensePeriodResponse toExpensePeriodResponse(String key, List<Receipt> receipts, boolean yearly) {
+        BigDecimal total = receipts.stream()
+                .map(receipt -> receipt.getTotal() == null ? BigDecimal.ZERO : receipt.getTotal())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new ReceiptExpensePeriodResponse(
+                key,
+                yearly ? key : monthLabel(receipts.getFirst()),
+                yearly ? "Year" : "Month",
+                receipts.size(),
+                total
+        );
+    }
+
+    private String monthLabel(Receipt receipt) {
+        String month = receipt.getReceiptDate().getMonth().getDisplayName(TextStyle.FULL, Locale.ENGLISH);
+        return month + " " + receipt.getReceiptDate().getYear();
     }
 
     @Transactional
