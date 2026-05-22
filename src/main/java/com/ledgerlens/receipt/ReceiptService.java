@@ -19,6 +19,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -149,6 +150,34 @@ public class ReceiptService {
     @Transactional
     public Page<ReceiptResponse> listReceipts(UUID userId, Pageable pageable) {
         return receiptRepository.findByUserId(userId, pageable).map(this::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public ReceiptStatusSummaryResponse summarizeStatuses(UUID userId) {
+        List<Receipt> receipts = receiptRepository.findAllByUserId(userId);
+        long completed = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.COMPLETED).count();
+        long processing = receipts.stream()
+                .filter(receipt -> receipt.getStatus() == ReceiptStatus.PENDING
+                        || receipt.getStatus() == ReceiptStatus.PROCESSING)
+                .count();
+        long failed = receipts.stream()
+                .filter(receipt -> receipt.getStatus() == ReceiptStatus.FAILED
+                        || receipt.getStatus() == ReceiptStatus.PERMANENTLY_FAILED)
+                .count();
+        long duplicate = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.DUPLICATE).count();
+        BigDecimal completedSpend = receipts.stream()
+                .filter(receipt -> receipt.getStatus() == ReceiptStatus.COMPLETED)
+                .map(receipt -> receipt.getTotal() == null ? BigDecimal.ZERO : receipt.getTotal())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        return new ReceiptStatusSummaryResponse(
+                receipts.size(),
+                completed,
+                processing,
+                failed,
+                duplicate,
+                completedSpend
+        );
     }
 
     @Transactional

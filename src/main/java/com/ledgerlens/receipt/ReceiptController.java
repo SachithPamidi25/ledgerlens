@@ -54,6 +54,12 @@ public class ReceiptController {
         return ResponseEntity.ok(receiptService.listReceipts(principal.userId(), pageable));
     }
 
+    @GetMapping("/status-summary")
+    public ResponseEntity<ReceiptStatusSummaryResponse> getStatusSummary(
+            @AuthenticationPrincipal UserPrincipal principal) {
+        return ResponseEntity.ok(receiptService.summarizeStatuses(principal.userId()));
+    }
+
     @PatchMapping("/{id}/correction")
     public ResponseEntity<?> correctReceipt(
             @AuthenticationPrincipal UserPrincipal principal,
