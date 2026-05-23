@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 public class MerchantNormalizationService {
 
     private final MerchantRepository merchantRepository;
+    private final MerchantEmbeddingService merchantEmbeddingService;
+    private final MerchantVectorRepository merchantVectorRepository;
 
     @Value("${merchant.similarity-threshold:0.3}")
     private double similarityThreshold;
@@ -20,11 +22,17 @@ public class MerchantNormalizationService {
             return rawVendor;
         }
 
-        return merchantRepository.findBestMatch(rawVendor, similarityThreshold)
+        String embedding = merchantEmbeddingService.embedForPgVector(rawVendor);
+        return merchantVectorRepository.findNearest(embedding)
                 .map(canonical -> {
-                    log.info("Normalized '{}' → '{}'", rawVendor, canonical);
+                    log.info("Vector-normalized '{}' to '{}'", rawVendor, canonical);
                     return canonical;
                 })
+                .or(() -> merchantRepository.findBestMatch(rawVendor, similarityThreshold)
+                        .map(canonical -> {
+                            log.info("Trigram-normalized '{}' to '{}'", rawVendor, canonical);
+                            return canonical;
+                        }))
                 .orElseGet(() -> {
                     log.info("No match found for '{}', keeping original", rawVendor);
                     return rawVendor;

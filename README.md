@@ -354,6 +354,18 @@ ai:extraction:receipt_hash:{sha256} -> ReceiptExtractionResult
 
 On a cache hit, LedgerLens skips the AI provider call, reuses the structured extraction, records `ai_cache_hit_ratio`, and still runs sanitizer plus validation before ledger posting. Cache misses call the configured provider and store only accepted extraction results, so invalid or suspicious outputs are not reused.
 
+## Merchant Normalization
+
+LedgerLens uses pgvector-backed merchant embeddings to normalize noisy receipt merchant text before ledger posting. Examples include:
+
+| Raw merchant text | Normalized merchant |
+| --- | --- |
+| `SQ *STARBUCKS #4821` | `Starbucks` |
+| `AMZN MKTP IN` | `Amazon` |
+| `ZOMATO LTD HYD` | `Zomato` |
+
+The local Docker Compose PostgreSQL image includes pgvector, and the `merchant_embedding` table stores canonical merchants plus seeded aliases. If pgvector is unavailable in a test or local database, the app falls back to the existing trigram similarity lookup so receipt processing still works.
+
 ## Load Test Snapshot
 
 A k6 load-test script is included in `scripts/load_test.js`. One benchmark run focused on p95 latency under concurrent traffic:
