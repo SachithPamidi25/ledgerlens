@@ -17,6 +17,7 @@ import java.util.Map;
 public class InsightsController {
 
     private final InsightsService insightsService;
+    private final GroundedSpendingQaService groundedSpendingQaService;
 
     @GetMapping
     public ResponseEntity<?> getInsights(
@@ -29,5 +30,21 @@ public class InsightsController {
 
         InsightsResponse response = insightsService.generateInsights(principal.userId(), months);
         return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/ask")
+    public ResponseEntity<?> askSpendingQuestion(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @RequestParam String question,
+            @RequestParam(defaultValue = "5") int limit) {
+
+        if (question == null || question.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "question is required"));
+        }
+        if (limit < 1 || limit > 10) {
+            return ResponseEntity.badRequest().body(Map.of("error", "limit must be between 1 and 10"));
+        }
+
+        return ResponseEntity.ok(groundedSpendingQaService.answerQuestion(principal.userId(), question, limit));
     }
 }

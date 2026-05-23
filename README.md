@@ -45,6 +45,7 @@ The project is built around a production-inspired backend flow: direct-to-object
 - Streams receipt status updates to the frontend with Redis pub/sub and Server-Sent Events.
 - Builds spending summaries by category and merchant.
 - Generates AI-powered spending insights over recent receipt history.
+- Supports grounded spending Q&A backed by pgvector receipt retrieval and source receipt tracking.
 - Exposes receipt status and monthly/yearly expense period summaries for dashboard analytics.
 - Supports month-aware receipt browsing, ledger search, and CSV export in the React frontend.
 - Includes a k6 load-test script for API throughput and latency checks.
@@ -210,6 +211,7 @@ LedgerLens uses several backend patterns that are common in payment, finance, an
 | `GET` | `/api/expenses/summary` | Spending summary |
 | `GET` | `/api/expenses/receipts/{id}` | Receipt details |
 | `GET` | `/api/insights` | AI spending insights |
+| `GET` | `/api/insights/ask?question=...` | Grounded spending Q&A with receipt sources |
 
 ## Local Setup
 
@@ -365,6 +367,17 @@ LedgerLens uses pgvector-backed merchant embeddings to normalize noisy receipt m
 | `ZOMATO LTD HYD` | `Zomato` |
 
 The local Docker Compose PostgreSQL image includes pgvector, and the `merchant_embedding` table stores canonical merchants plus seeded aliases. If pgvector is unavailable in a test or local database, the app falls back to the existing trigram similarity lookup so receipt processing still works.
+
+## RAG Spending Q&A
+
+Completed receipts are indexed into `receipt_embedding` with a compact semantic text representation of merchant, category, date, amount, currency, and raw extraction details. Users can ask questions such as:
+
+- `coffee expenses near college`
+- `high food spending last month`
+- `online shopping receipts`
+- `Why did my food spending increase in April?`
+
+The `/api/insights/ask` endpoint retrieves the nearest completed receipts for the authenticated user, builds a grounded answer only from those receipts, returns the source receipts, and records the evidence links in `insight_source_receipt`. If pgvector is unavailable, the endpoint safely returns no sourced answer instead of inventing one.
 
 ## Load Test Snapshot
 

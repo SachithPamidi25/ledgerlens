@@ -2,6 +2,7 @@ package com.ledgerlens.receipt;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.ledgerlens.insights.ReceiptSemanticIndexService;
 import com.ledgerlens.ledger.LedgerPostingService;
 import com.ledgerlens.merchant.MerchantNormalizationService;
 import lombok.RequiredArgsConstructor;
@@ -28,6 +29,7 @@ public class ReceiptPersistenceService {
     private final ObjectMapper objectMapper;
     private final StringRedisTemplate redisTemplate;
     private final LedgerPostingService ledgerPostingService;
+    private final ReceiptSemanticIndexService receiptSemanticIndexService;
 
     @Transactional
     public void markProcessing(UUID receiptId) {
@@ -45,6 +47,7 @@ public class ReceiptPersistenceService {
         applyExtraction(receipt, contentHash, result);
         receipt.setStatus(ReceiptStatus.COMPLETED);
         ledgerPostingService.postReceiptExpense(receipt);
+        receiptSemanticIndexService.indexReceipt(receipt);
         publishStatusAfterCommit(receiptId, ReceiptStatus.COMPLETED);
     }
 

@@ -1,12 +1,14 @@
 package com.ledgerlens.merchant;
 
+import com.ledgerlens.ai.LocalTextEmbeddingService;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 class MerchantEmbeddingServiceTest {
 
-    private final MerchantEmbeddingService embeddingService = new MerchantEmbeddingService();
+    private final MerchantEmbeddingService embeddingService =
+            new MerchantEmbeddingService(new LocalTextEmbeddingService());
 
     @Test
     void embedForPgVector_returnsStablePgVectorLiteral() {
