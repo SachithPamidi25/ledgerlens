@@ -6,6 +6,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
@@ -16,6 +17,7 @@ public class ReceiptProcessingService {
 
     private final ReceiptRepository receiptRepository;
     private final AiExtractionClient aiExtractionClient;
+    private final AiOutputSanitizer aiOutputSanitizer;
     private final ReceiptExtractionValidator extractionValidator;
     private final StorageService storageService;
     private final ReceiptPersistenceService persistenceService;
@@ -60,9 +62,12 @@ public class ReceiptProcessingService {
 
         try {
             ReceiptExtractionResult result = aiExtractionClient.extractReceiptData(imageBytes);
-            var validationErrors = extractionValidator.validate(result);
-            if (!validationErrors.isEmpty()) {
-                persistenceService.markNeedsReview(message.receiptId(), contentHash, result, validationErrors);
+            var sanitizedExtraction = aiOutputSanitizer.sanitize(result);
+            result = sanitizedExtraction.result();
+            var reviewErrors = new ArrayList<>(sanitizedExtraction.securityErrors());
+            reviewErrors.addAll(extractionValidator.validate(result));
+            if (!reviewErrors.isEmpty()) {
+                persistenceService.markNeedsReview(message.receiptId(), contentHash, result, reviewErrors);
                 return ReceiptStatus.NEEDS_REVIEW;
             }
             persistenceService.persistResult(message.receiptId(), contentHash, result);

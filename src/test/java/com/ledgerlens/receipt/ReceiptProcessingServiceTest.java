@@ -22,6 +22,7 @@ class ReceiptProcessingServiceTest {
 
     @Mock private ReceiptRepository receiptRepository;
     @Mock private AiExtractionClient aiExtractionClient;
+    @Mock private AiOutputSanitizer aiOutputSanitizer;
     @Mock private ReceiptExtractionValidator extractionValidator;
     @Mock private StorageService storageService;
     @Mock private ReceiptPersistenceService persistenceService;
@@ -51,6 +52,8 @@ class ReceiptProcessingServiceTest {
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
         when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(result);
+        when(aiOutputSanitizer.sanitize(result))
+                .thenReturn(new AiOutputSanitizer.SanitizedExtraction(result, List.of()));
         when(extractionValidator.validate(result)).thenReturn(List.of());
 
         ReceiptStatus status = processingService.process(message);
@@ -79,6 +82,8 @@ class ReceiptProcessingServiceTest {
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
         when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(result);
+        when(aiOutputSanitizer.sanitize(result))
+                .thenReturn(new AiOutputSanitizer.SanitizedExtraction(result, List.of()));
         when(extractionValidator.validate(result)).thenReturn(errors);
 
         ReceiptStatus status = processingService.process(message);
