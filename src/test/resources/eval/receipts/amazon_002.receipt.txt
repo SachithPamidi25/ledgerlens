@@ -1,0 +1,8 @@
+merchant: Amazon
+date: 2026-04-05
+category: SHOPPING
+subtotal: 1299.00
+tax: 0.00
+tip: 0.00
+total: 1299.00
+currency: INR

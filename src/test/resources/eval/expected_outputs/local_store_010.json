@@ -1,0 +1,11 @@
+{
+  "vendor": "Local General Store",
+  "merchantCategory": "OTHER",
+  "receiptDate": "2026-04-25",
+  "subtotal": 245.00,
+  "tax": 12.25,
+  "tip": 0.00,
+  "total": 257.25,
+  "currency": "INR",
+  "lineItems": []
+}

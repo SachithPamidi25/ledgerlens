@@ -1,0 +1,8 @@
+merchant: Uber
+date: 2026-04-10
+category: TRANSPORT
+subtotal: 238.50
+tax: 11.50
+tip: 0.00
+total: 250.00
+currency: INR

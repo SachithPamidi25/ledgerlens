@@ -1,0 +1,8 @@
+merchant: College Bookstore
+date: 2026-04-20
+category: SHOPPING
+subtotal: 560.00
+tax: 28.00
+tip: 0.00
+total: 588.00
+currency: INR

@@ -1,0 +1,11 @@
+{
+  "vendor": "College Bookstore",
+  "merchantCategory": "SHOPPING",
+  "receiptDate": "2026-04-20",
+  "subtotal": 560.00,
+  "tax": 28.00,
+  "tip": 0.00,
+  "total": 588.00,
+  "currency": "INR",
+  "lineItems": []
+}

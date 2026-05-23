@@ -1,0 +1,8 @@
+merchant: Zomato
+date: 2026-04-07
+category: FOOD
+subtotal: 310.00
+tax: 15.50
+tip: 20.00
+total: 345.50
+currency: INR

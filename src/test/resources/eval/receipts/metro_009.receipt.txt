@@ -1,0 +1,8 @@
+merchant: Hyderabad Metro
+date: 2026-04-22
+category: TRANSPORT
+subtotal: 60.00
+tax: 0.00
+tip: 0.00
+total: 60.00
+currency: INR

@@ -294,7 +294,29 @@ Current test coverage includes:
 - JWT generation and validation
 - rate limiting
 - receipt processing deduplication paths
+- AI extraction validation and review routing
+- offline AI extraction evaluation report generation
 - Spring Boot context loading
+
+## AI Extraction Evaluation
+
+LedgerLens includes an offline evaluation harness for receipt extraction quality. It runs deterministic demo receipts through the `AiExtractionClient` contract, compares results with golden structured outputs, validates the extracted payloads, and regenerates `eval-report.md`.
+
+Current offline baseline:
+
+| Metric | Result |
+| --- | --- |
+| Dataset size | 10 receipts |
+| Merchant accuracy | 100.0% |
+| Total amount accuracy | 100.0% |
+| Date accuracy | 100.0% |
+| Category accuracy | 100.0% |
+| JSON validity rate | 100.0% |
+| Validation failure rate | 0.0% |
+| Avg extraction latency | 1.0 ms |
+| Avg cost per receipt | INR 0.21 / USD 0.0025 |
+
+The demo dataset lives in `src/test/resources/eval/receipts`, expected outputs live in `src/test/resources/eval/expected_outputs`, and the scoring code lives in `src/test/java/com/ledgerlens/receipt/eval`. The deterministic client keeps CI free of live AI calls while preserving the same provider boundary used by real extraction clients.
 
 ## Load Test Snapshot
 

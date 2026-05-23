@@ -1,0 +1,8 @@
+merchant: Local General Store
+date: 2026-04-25
+category: OTHER
+subtotal: 245.00
+tax: 12.25
+tip: 0.00
+total: 257.25
+currency: INR

@@ -1,0 +1,11 @@
+{
+  "vendor": "Apollo Pharmacy",
+  "merchantCategory": "HEALTH",
+  "receiptDate": "2026-04-12",
+  "subtotal": 780.00,
+  "tax": 39.00,
+  "tip": 0.00,
+  "total": 819.00,
+  "currency": "INR",
+  "lineItems": []
+}

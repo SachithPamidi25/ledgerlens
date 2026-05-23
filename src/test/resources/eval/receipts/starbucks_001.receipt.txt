@@ -1,0 +1,8 @@
+merchant: Starbucks
+date: 2026-04-02
+category: FOOD
+subtotal: 420.00
+tax: 21.00
+tip: 0.00
+total: 441.00
+currency: INR
