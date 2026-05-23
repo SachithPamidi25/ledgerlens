@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
 
@@ -40,6 +42,44 @@ public class ReceiptPersistenceService {
         Receipt receipt = receiptRepository.findById(receiptId)
                 .orElseThrow(() -> new RuntimeException("Receipt not found: " + receiptId));
 
+        applyExtraction(receipt, contentHash, result);
+        receipt.setStatus(ReceiptStatus.COMPLETED);
+        ledgerPostingService.postReceiptExpense(receipt);
+        publishStatusAfterCommit(receiptId, ReceiptStatus.COMPLETED);
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markNeedsReview(
+            UUID receiptId,
+            String contentHash,
+            ReceiptExtractionResult result,
+            List<ReceiptExtractionValidationError> validationErrors
+    ) {
+        Receipt receipt = receiptRepository.findById(receiptId)
+                .orElseThrow(() -> new RuntimeException("Receipt not found: " + receiptId));
+
+        applyExtraction(receipt, contentHash, result);
+        receipt.setStatus(ReceiptStatus.NEEDS_REVIEW);
+
+        try {
+            Map<String, Object> reviewPayload = new LinkedHashMap<>();
+            reviewPayload.put("extraction", result);
+            reviewPayload.put("validationErrors", validationErrors);
+            receipt.setRawExtraction(objectMapper.writeValueAsString(reviewPayload));
+        } catch (JsonProcessingException e) {
+            log.warn("Failed to serialize review extraction for receipt {}", receiptId, e);
+        }
+
+        publishStatusAfterCommit(receiptId, ReceiptStatus.NEEDS_REVIEW);
+        log.warn("Receipt {} requires review before ledger posting: {}", receiptId, validationErrors);
+    }
+
+    private void applyExtraction(Receipt receipt, String contentHash, ReceiptExtractionResult result) {
+        receipt.setContentHash(contentHash);
+        if (result == null) {
+            return;
+        }
+
         String normalizedVendor = merchantNormalizationService.normalize(result.vendor());
         receipt.setVendor(normalizedVendor);
         receipt.setMerchantCategory(result.merchantCategory());
@@ -51,17 +91,12 @@ public class ReceiptPersistenceService {
         if (result.currency() != null) {
             receipt.setCurrency(result.currency());
         }
-        receipt.setContentHash(contentHash);
 
         try {
             receipt.setRawExtraction(objectMapper.writeValueAsString(result));
         } catch (JsonProcessingException e) {
-            log.warn("Failed to serialize raw extraction for receipt {}", receiptId, e);
+            log.warn("Failed to serialize raw extraction for receipt {}", receipt.getId(), e);
         }
-
-        receipt.setStatus(ReceiptStatus.COMPLETED);
-        ledgerPostingService.postReceiptExpense(receipt);
-        publishStatusAfterCommit(receiptId, ReceiptStatus.COMPLETED);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

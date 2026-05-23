@@ -9,6 +9,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -20,7 +21,8 @@ import static org.mockito.Mockito.*;
 class ReceiptProcessingServiceTest {
 
     @Mock private ReceiptRepository receiptRepository;
-    @Mock private ClaudeVisionService claudeVisionService;
+    @Mock private AiExtractionClient aiExtractionClient;
+    @Mock private ReceiptExtractionValidator extractionValidator;
     @Mock private StorageService storageService;
     @Mock private ReceiptPersistenceService persistenceService;
     @Mock private StringRedisTemplate redisTemplate;
@@ -48,14 +50,42 @@ class ReceiptProcessingServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
-        when(claudeVisionService.extractReceiptData(imageBytes)).thenReturn(result);
+        when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(result);
+        when(extractionValidator.validate(result)).thenReturn(List.of());
 
         ReceiptStatus status = processingService.process(message);
 
         assertThat(status).isEqualTo(ReceiptStatus.COMPLETED);
         verify(persistenceService).markProcessing(receiptId);
         verify(persistenceService).persistResult(receiptId, hash, result);
-        verify(claudeVisionService).extractReceiptData(imageBytes);
+        verify(aiExtractionClient).extractReceiptData(imageBytes);
+        verify(redisTemplate).delete("dedup_lock:" + userId + ":" + hash);
+    }
+
+    @Test
+    void process_invalidExtraction_marksNeedsReviewWithoutPostingLedger() {
+        byte[] imageBytes = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        String hash = "review-hash";
+        ReceiptExtractionResult result = new ReceiptExtractionResult(
+                "", MerchantCategory.FOOD, null,
+                null, null, null, null, "USD", null);
+        List<ReceiptExtractionValidationError> errors =
+                List.of(new ReceiptExtractionValidationError("vendor", "merchant is required"));
+
+        when(storageService.downloadBytes(anyString())).thenReturn(imageBytes);
+        when(storageService.computeContentHashFromBytes(imageBytes)).thenReturn(hash);
+        when(receiptRepository.existsByContentHashAndUserId(hash, userId)).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
+                .thenReturn(true);
+        when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(result);
+        when(extractionValidator.validate(result)).thenReturn(errors);
+
+        ReceiptStatus status = processingService.process(message);
+
+        assertThat(status).isEqualTo(ReceiptStatus.NEEDS_REVIEW);
+        verify(persistenceService).markNeedsReview(receiptId, hash, result, errors);
+        verify(persistenceService, never()).persistResult(any(), any(), any());
         verify(redisTemplate).delete("dedup_lock:" + userId + ":" + hash);
     }
 
@@ -72,7 +102,7 @@ class ReceiptProcessingServiceTest {
 
         assertThat(status).isEqualTo(ReceiptStatus.DUPLICATE);
         verify(persistenceService).markDuplicate(receiptId, hash);
-        verifyNoInteractions(claudeVisionService);
+        verifyNoInteractions(aiExtractionClient);
     }
 
     @Test
@@ -86,7 +116,7 @@ class ReceiptProcessingServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
-        when(claudeVisionService.extractReceiptData(imageBytes))
+        when(aiExtractionClient.extractReceiptData(imageBytes))
                 .thenThrow(new RuntimeException("Claude API timeout"));
 
         assertThatThrownBy(() -> processingService.process(message))
@@ -108,6 +138,6 @@ class ReceiptProcessingServiceTest {
                 .hasMessageContaining("MinIO connection refused");
 
         verify(persistenceService).markProcessing(receiptId);
-        verifyNoInteractions(claudeVisionService);
+        verifyNoInteractions(aiExtractionClient);
     }
 }

@@ -7,6 +7,7 @@ export type ReceiptStatus =
   | "PENDING"
   | "PROCESSING"
   | "COMPLETED"
+  | "NEEDS_REVIEW"
   | "FAILED"
   | "DUPLICATE"
   | "PERMANENTLY_FAILED";
@@ -97,6 +98,7 @@ export type ReceiptStatusSummary = {
   completed: number;
   processing: number;
   failed: number;
+  needsReview: number;
   duplicate: number;
   completedSpend: number;
 };

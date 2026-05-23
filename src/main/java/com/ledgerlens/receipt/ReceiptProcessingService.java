@@ -15,7 +15,8 @@ import java.util.concurrent.TimeUnit;
 public class ReceiptProcessingService {
 
     private final ReceiptRepository receiptRepository;
-    private final ClaudeVisionService claudeVisionService;
+    private final AiExtractionClient aiExtractionClient;
+    private final ReceiptExtractionValidator extractionValidator;
     private final StorageService storageService;
     private final ReceiptPersistenceService persistenceService;
     private final StringRedisTemplate redisTemplate;
@@ -58,7 +59,12 @@ public class ReceiptProcessingService {
         }
 
         try {
-            ReceiptExtractionResult result = claudeVisionService.extractReceiptData(imageBytes);
+            ReceiptExtractionResult result = aiExtractionClient.extractReceiptData(imageBytes);
+            var validationErrors = extractionValidator.validate(result);
+            if (!validationErrors.isEmpty()) {
+                persistenceService.markNeedsReview(message.receiptId(), contentHash, result, validationErrors);
+                return ReceiptStatus.NEEDS_REVIEW;
+            }
             persistenceService.persistResult(message.receiptId(), contentHash, result);
             return ReceiptStatus.COMPLETED;
         } finally {

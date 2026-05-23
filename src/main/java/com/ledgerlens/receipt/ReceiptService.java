@@ -170,6 +170,7 @@ public class ReceiptService {
                 .filter(receipt -> receipt.getStatus() == ReceiptStatus.FAILED
                         || receipt.getStatus() == ReceiptStatus.PERMANENTLY_FAILED)
                 .count();
+        long needsReview = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.NEEDS_REVIEW).count();
         long duplicate = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.DUPLICATE).count();
         BigDecimal completedSpend = receipts.stream()
                 .filter(receipt -> receipt.getStatus() == ReceiptStatus.COMPLETED)
@@ -181,6 +182,7 @@ public class ReceiptService {
                 completed,
                 processing,
                 failed,
+                needsReview,
                 duplicate,
                 completedSpend
         );

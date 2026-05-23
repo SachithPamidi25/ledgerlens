@@ -58,17 +58,19 @@ class ReceiptServiceTest {
         Receipt processing = receiptWithStatus(ReceiptStatus.PROCESSING, null);
         Receipt pending = receiptWithStatus(ReceiptStatus.PENDING, null);
         Receipt failed = receiptWithStatus(ReceiptStatus.FAILED, null);
+        Receipt review = receiptWithStatus(ReceiptStatus.NEEDS_REVIEW, null);
         Receipt duplicate = receiptWithStatus(ReceiptStatus.DUPLICATE, null);
 
         when(receiptRepository.findAllByUserId(userId))
-                .thenReturn(List.of(completed, processing, pending, failed, duplicate));
+                .thenReturn(List.of(completed, processing, pending, failed, review, duplicate));
 
         ReceiptStatusSummaryResponse summary = receiptService.summarizeStatuses(userId);
 
-        assertThat(summary.total()).isEqualTo(5);
+        assertThat(summary.total()).isEqualTo(6);
         assertThat(summary.completed()).isEqualTo(1);
         assertThat(summary.processing()).isEqualTo(2);
         assertThat(summary.failed()).isEqualTo(1);
+        assertThat(summary.needsReview()).isEqualTo(1);
         assertThat(summary.duplicate()).isEqualTo(1);
         assertThat(summary.completedSpend()).isEqualByComparingTo("12.50");
     }

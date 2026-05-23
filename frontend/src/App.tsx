@@ -1498,7 +1498,7 @@ function StatusBadge({ status }: { status: Receipt["status"] }) {
 }
 
 function isTerminalReceiptStatus(status: ReceiptStatus) {
-  return status === "COMPLETED" || status === "FAILED" || status === "DUPLICATE" || status === "PERMANENTLY_FAILED";
+  return status === "COMPLETED" || status === "NEEDS_REVIEW" || status === "FAILED" || status === "DUPLICATE" || status === "PERMANENTLY_FAILED";
 }
 
 function parseStatusEvent(event: Event): ReceiptStatus | null {

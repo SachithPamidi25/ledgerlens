@@ -7,6 +7,7 @@ public record ReceiptStatusSummaryResponse(
         long completed,
         long processing,
         long failed,
+        long needsReview,
         long duplicate,
         BigDecimal completedSpend
 ) {

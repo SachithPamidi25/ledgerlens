@@ -95,6 +95,7 @@ public class ReceiptStatusController {
 
     private boolean isTerminalStatus(String payload) {
         return payload.contains("\"COMPLETED\"")
+                || payload.contains("\"NEEDS_REVIEW\"")
                 || payload.contains("\"FAILED\"")
                 || payload.contains("\"DUPLICATE\"")
                 || payload.contains("\"PERMANENTLY_FAILED\"");
