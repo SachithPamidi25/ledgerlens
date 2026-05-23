@@ -19,6 +19,7 @@ public class ReceiptProcessingService {
 
     private final ReceiptRepository receiptRepository;
     private final AiExtractionClient aiExtractionClient;
+    private final AiExtractionCacheService aiExtractionCacheService;
     private final AiOutputSanitizer aiOutputSanitizer;
     private final AiObservabilityService aiObservabilityService;
     private final ReceiptExtractionValidator extractionValidator;
@@ -69,23 +70,33 @@ public class ReceiptProcessingService {
 
         try {
             ReceiptExtractionResult result;
-            try {
-                result = aiExtractionClient.extractReceiptData(imageBytes);
-                long latencyMs = elapsedMs(extractionStart);
-                aiObservabilityService.recordExtractionLatency(latencyMs, provider, model);
-                aiObservabilityService.recordExtractionSuccess(provider, model);
-                log.info("AI extraction succeeded: provider={} model={} requestId={} receiptId={} latencyMs={}",
-                        provider, model, message.traceId(), message.receiptId(), latencyMs);
-            } catch (RuntimeException e) {
-                long latencyMs = elapsedMs(extractionStart);
-                aiObservabilityService.recordExtractionLatency(latencyMs, provider, model);
-                aiObservabilityService.recordExtractionFailure(provider, model, e.getClass().getSimpleName());
-                if (isTimeout(e)) {
-                    aiObservabilityService.recordProviderTimeout(provider, model);
+            boolean cacheHit = false;
+            var cachedExtraction = aiExtractionCacheService.findByContentHash(contentHash);
+            if (cachedExtraction.isPresent()) {
+                result = cachedExtraction.get();
+                cacheHit = true;
+                aiObservabilityService.recordCacheHit(provider, model);
+                log.info("AI extraction cache hit: provider={} model={} requestId={} receiptId={} hash={}",
+                        provider, model, message.traceId(), message.receiptId(), contentHash);
+            } else {
+                try {
+                    result = aiExtractionClient.extractReceiptData(imageBytes);
+                    long latencyMs = elapsedMs(extractionStart);
+                    aiObservabilityService.recordExtractionLatency(latencyMs, provider, model);
+                    aiObservabilityService.recordExtractionSuccess(provider, model);
+                    log.info("AI extraction succeeded: provider={} model={} requestId={} receiptId={} latencyMs={}",
+                            provider, model, message.traceId(), message.receiptId(), latencyMs);
+                } catch (RuntimeException e) {
+                    long latencyMs = elapsedMs(extractionStart);
+                    aiObservabilityService.recordExtractionLatency(latencyMs, provider, model);
+                    aiObservabilityService.recordExtractionFailure(provider, model, e.getClass().getSimpleName());
+                    if (isTimeout(e)) {
+                        aiObservabilityService.recordProviderTimeout(provider, model);
+                    }
+                    log.warn("AI extraction failed: provider={} model={} requestId={} receiptId={} latencyMs={} reason={}",
+                            provider, model, message.traceId(), message.receiptId(), latencyMs, e.getMessage());
+                    throw e;
                 }
-                log.warn("AI extraction failed: provider={} model={} requestId={} receiptId={} latencyMs={} reason={}",
-                        provider, model, message.traceId(), message.receiptId(), latencyMs, e.getMessage());
-                throw e;
             }
 
             var sanitizedExtraction = aiOutputSanitizer.sanitize(result);
@@ -109,6 +120,9 @@ public class ReceiptProcessingService {
                 return ReceiptStatus.NEEDS_REVIEW;
             }
             persistenceService.persistResult(message.receiptId(), contentHash, result);
+            if (!cacheHit) {
+                aiExtractionCacheService.store(contentHash, result);
+            }
             log.info("AI extraction accepted: provider={} model={} requestId={} receiptId={} validationResult=passed",
                     provider, model, message.traceId(), message.receiptId());
             return ReceiptStatus.COMPLETED;

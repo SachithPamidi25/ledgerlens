@@ -344,6 +344,16 @@ LedgerLens records AI extraction metrics with Micrometer and provider/model tags
 
 The app includes `micrometer-registry-prometheus` so these meters can be scraped through the Spring Boot Actuator Prometheus endpoint when `prometheus` is exposed. Extraction logs also include provider, model, request id, receipt id, latency, validation result, and failure reason.
 
+## AI Cost And Latency Controls
+
+Receipt extraction results are cached in Redis by content hash:
+
+```text
+ai:extraction:receipt_hash:{sha256} -> ReceiptExtractionResult
+```
+
+On a cache hit, LedgerLens skips the AI provider call, reuses the structured extraction, records `ai_cache_hit_ratio`, and still runs sanitizer plus validation before ledger posting. Cache misses call the configured provider and store only accepted extraction results, so invalid or suspicious outputs are not reused.
+
 ## Load Test Snapshot
 
 A k6 load-test script is included in `scripts/load_test.js`. One benchmark run focused on p95 latency under concurrent traffic:

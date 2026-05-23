@@ -12,6 +12,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -27,6 +28,7 @@ class PromptInjectionTest {
 
     @Mock private ReceiptRepository receiptRepository;
     @Mock private AiExtractionClient aiExtractionClient;
+    @Mock private AiExtractionCacheService aiExtractionCacheService;
     @Mock private AiOutputSanitizer aiOutputSanitizer;
     @Mock private AiObservabilityService aiObservabilityService;
     @Mock private ReceiptExtractionValidator extractionValidator;
@@ -98,6 +100,7 @@ class PromptInjectionTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
+        when(aiExtractionCacheService.findByContentHash(hash)).thenReturn(Optional.empty());
         when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(malicious);
         when(aiOutputSanitizer.sanitize(malicious))
                 .thenReturn(new AiOutputSanitizer.SanitizedExtraction(malicious, securityErrors));

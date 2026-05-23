@@ -10,6 +10,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,6 +23,7 @@ class ReceiptProcessingServiceTest {
 
     @Mock private ReceiptRepository receiptRepository;
     @Mock private AiExtractionClient aiExtractionClient;
+    @Mock private AiExtractionCacheService aiExtractionCacheService;
     @Mock private AiOutputSanitizer aiOutputSanitizer;
     @Mock private AiObservabilityService aiObservabilityService;
     @Mock private ReceiptExtractionValidator extractionValidator;
@@ -52,6 +54,7 @@ class ReceiptProcessingServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
+        when(aiExtractionCacheService.findByContentHash(hash)).thenReturn(Optional.empty());
         when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(result);
         when(aiOutputSanitizer.sanitize(result))
                 .thenReturn(new AiOutputSanitizer.SanitizedExtraction(result, List.of()));
@@ -62,7 +65,38 @@ class ReceiptProcessingServiceTest {
         assertThat(status).isEqualTo(ReceiptStatus.COMPLETED);
         verify(persistenceService).markProcessing(receiptId);
         verify(persistenceService).persistResult(receiptId, hash, result);
+        verify(aiExtractionCacheService).store(hash, result);
         verify(aiExtractionClient).extractReceiptData(imageBytes);
+        verify(redisTemplate).delete("dedup_lock:" + userId + ":" + hash);
+    }
+
+    @Test
+    void process_cachedExtraction_skipsAiCallAndPersistsResult() {
+        byte[] imageBytes = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+        String hash = "cached-hash";
+        ReceiptExtractionResult cached = new ReceiptExtractionResult(
+                "Starbucks", MerchantCategory.FOOD, java.time.LocalDate.of(2026, 4, 2),
+                java.math.BigDecimal.TEN, java.math.BigDecimal.ZERO, java.math.BigDecimal.ZERO,
+                java.math.BigDecimal.TEN, "USD", List.of());
+
+        when(storageService.downloadBytes(anyString())).thenReturn(imageBytes);
+        when(storageService.computeContentHashFromBytes(imageBytes)).thenReturn(hash);
+        when(receiptRepository.existsByContentHashAndUserId(hash, userId)).thenReturn(false);
+        when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+        when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
+                .thenReturn(true);
+        when(aiExtractionCacheService.findByContentHash(hash)).thenReturn(Optional.of(cached));
+        when(aiOutputSanitizer.sanitize(cached))
+                .thenReturn(new AiOutputSanitizer.SanitizedExtraction(cached, List.of()));
+        when(extractionValidator.validate(cached)).thenReturn(List.of());
+
+        ReceiptStatus status = processingService.process(message);
+
+        assertThat(status).isEqualTo(ReceiptStatus.COMPLETED);
+        verify(aiObservabilityService).recordCacheHit("unknown", "unknown");
+        verify(aiExtractionClient, never()).extractReceiptData(any());
+        verify(aiExtractionCacheService, never()).store(anyString(), any());
+        verify(persistenceService).persistResult(receiptId, hash, cached);
         verify(redisTemplate).delete("dedup_lock:" + userId + ":" + hash);
     }
 
@@ -82,6 +116,7 @@ class ReceiptProcessingServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
+        when(aiExtractionCacheService.findByContentHash(hash)).thenReturn(Optional.empty());
         when(aiExtractionClient.extractReceiptData(imageBytes)).thenReturn(result);
         when(aiOutputSanitizer.sanitize(result))
                 .thenReturn(new AiOutputSanitizer.SanitizedExtraction(result, List.of()));
@@ -92,6 +127,7 @@ class ReceiptProcessingServiceTest {
         assertThat(status).isEqualTo(ReceiptStatus.NEEDS_REVIEW);
         verify(persistenceService).markNeedsReview(receiptId, hash, result, errors);
         verify(persistenceService, never()).persistResult(any(), any(), any());
+        verify(aiExtractionCacheService, never()).store(anyString(), any());
         verify(redisTemplate).delete("dedup_lock:" + userId + ":" + hash);
     }
 
@@ -122,6 +158,7 @@ class ReceiptProcessingServiceTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.setIfAbsent(eq("dedup_lock:" + userId + ":" + hash), eq(receiptId.toString()), eq(10L), any()))
                 .thenReturn(true);
+        when(aiExtractionCacheService.findByContentHash(hash)).thenReturn(Optional.empty());
         when(aiExtractionClient.extractReceiptData(imageBytes))
                 .thenThrow(new RuntimeException("Claude API timeout"));
 
