@@ -25,4 +25,14 @@ public class MockExtractionClient implements AiExtractionClient {
                 List.of()
         );
     }
+
+    @Override
+    public String providerName() {
+        return "mock";
+    }
+
+    @Override
+    public String modelName() {
+        return "mock-receipt-extractor";
+    }
 }

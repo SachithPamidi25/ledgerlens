@@ -44,6 +44,16 @@ public class AnthropicVisionExtractionClient implements AiExtractionClient {
     private int globalRateLimitPerMinute;
 
     @Override
+    public String providerName() {
+        return "anthropic";
+    }
+
+    @Override
+    public String modelName() {
+        return model;
+    }
+
+    @Override
     @Bulkhead(name = "claude")
     @CircuitBreaker(name = "claude", fallbackMethod = "claudeFallback")
     @Retry(name = "claude")

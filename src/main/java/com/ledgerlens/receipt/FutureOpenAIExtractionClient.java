@@ -10,4 +10,14 @@ public class FutureOpenAIExtractionClient implements AiExtractionClient {
     public ReceiptExtractionResult extractReceiptData(byte[] imageBytes) {
         throw new UnsupportedOperationException("OpenAI extraction provider is not configured yet");
     }
+
+    @Override
+    public String providerName() {
+        return "openai";
+    }
+
+    @Override
+    public String modelName() {
+        return "future-openai-vision-model";
+    }
 }

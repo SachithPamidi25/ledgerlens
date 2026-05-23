@@ -23,6 +23,7 @@ class ReceiptProcessingServiceTest {
     @Mock private ReceiptRepository receiptRepository;
     @Mock private AiExtractionClient aiExtractionClient;
     @Mock private AiOutputSanitizer aiOutputSanitizer;
+    @Mock private AiObservabilityService aiObservabilityService;
     @Mock private ReceiptExtractionValidator extractionValidator;
     @Mock private StorageService storageService;
     @Mock private ReceiptPersistenceService persistenceService;
