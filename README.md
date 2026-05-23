@@ -39,8 +39,9 @@ The project is built around a production-inspired backend flow: direct-to-object
 - Generates short-lived MinIO presigned URLs so receipt images upload directly to object storage.
 - Queues receipt processing through an outbox table and RabbitMQ.
 - Extracts receipt fields with an AI vision service: merchant, date, category, subtotal, tax, tip, total, currency, and line items.
+- Validates structured AI output before ledger posting and routes uncertain receipts to human review.
 - Detects duplicate receipts using content hashes, database constraints, and Redis locks.
-- Models receipt lifecycle states such as `PENDING`, `PROCESSING`, `COMPLETED`, `FAILED`, `DUPLICATE`, and `PERMANENTLY_FAILED`.
+- Models receipt lifecycle states such as `PENDING`, `PROCESSING`, `COMPLETED`, `NEEDS_REVIEW`, `FAILED`, `DUPLICATE`, and `PERMANENTLY_FAILED`.
 - Posts completed receipts into a balanced double-entry ledger.
 - Streams receipt status updates to the frontend with Redis pub/sub and Server-Sent Events.
 - Builds spending summaries by category and merchant.
@@ -68,10 +69,14 @@ flowchart LR
     subgraph Persistence["Persistence Layer"]
         DB[(PostgreSQL)]
         RECEIPTS[receipts]
+        EMBED[merchant_embedding<br/>receipt_embedding]
+        AUDIT[ai_tool_call_audit<br/>insight_source_receipt]
         JOURNAL[journal_entries]
         TOKENS[refresh_tokens]
         OUTBOX[outbox_events]
         DB --- RECEIPTS
+        DB --- EMBED
+        DB --- AUDIT
         DB --- JOURNAL
         DB --- TOKENS
         DB --- OUTBOX
@@ -87,7 +92,10 @@ flowchart LR
         WORKER[Receipt Processing Worker<br/>idempotent consumers]
         MINIO[MinIO<br/>S3-compatible object storage]
         REDIS[Redis<br/>locks + status cache]
-        AI[AI Receipt Extraction Service<br/>Vision model]
+        AI[AI Extraction Client<br/>Anthropic / mock / future OpenAI]
+        VALIDATE[Sanitizer + validator<br/>NEEDS_REVIEW gate]
+        VECTOR[pgvector retrieval<br/>merchant normalization + RAG]
+        AGENT[Read-only finance agent<br/>allowlisted tools]
     end
 
     FE -->|request presigned URL| APP
@@ -110,9 +118,17 @@ flowchart LR
 
     WORKER -->|download image| MINIO
     WORKER -->|dedup lock + status publish| REDIS
+    WORKER -->|cache lookup / store| REDIS
     WORKER -->|extract receipt data| AI
-    WORKER -->|persist result| RECEIPTS
+    AI --> VALIDATE
+    VALIDATE -->|valid structured output| VECTOR
+    VALIDATE -->|invalid or suspicious| RECEIPTS
+    VECTOR -->|normalize merchant + index receipt| EMBED
+    WORKER -->|persist accepted result| RECEIPTS
     WORKER -->|create balanced entry| JOURNAL
+    APP -->|grounded Q&A| VECTOR
+    APP -->|read-only tool calls| AGENT
+    AGENT --> AUDIT
     REDIS -->|SSE status update| FE
 
     RELAY -. eventual consistency .-> WORKER
@@ -127,10 +143,15 @@ Client upload
 -> Outbox event persist
 -> RabbitMQ dispatch
 -> AI extraction worker
+-> Redis extraction cache lookup
 -> Merchant normalization
--> Category classification
--> Journal entry generation
--> SSE status broadcast
+-> Prompt-injection sanitization
+-> Structured output validation
+-> NEEDS_REVIEW if validation fails
+-> Ledger posting if validation passes
+-> Receipt embedding and source indexing
+-> Metrics, logs, and SSE status broadcast
+-> Grounded spending insights and read-only agent tools
 ```
 
 ## Core Backend Flows
@@ -181,6 +202,22 @@ LedgerLens exposes lightweight authenticated analytics endpoints for dashboard a
 
 The frontend also provides a receipt-date ledger view, search across loaded receipts, and CSV export for the active filtered ledger view.
 
+## AI Architecture
+
+LedgerLens treats AI as an external, probabilistic subsystem with explicit boundaries:
+
+| Concern | Implementation |
+| --- | --- |
+| Provider isolation | `AiExtractionClient` with Anthropic, mock, and future OpenAI implementations |
+| Structured validation | `ReceiptExtractionValidator` blocks invalid totals, unsupported currencies, bad categories, negative line items, and missing merchant/date/amount fields |
+| Human review | Invalid or suspicious extraction output moves receipts to `NEEDS_REVIEW` and does not post ledger entries |
+| Evaluation | Offline eval harness compares demo receipt outputs against golden JSON and regenerates `eval-report.md` |
+| Security | Prompt-injection patterns are treated as receipt data, sanitized, and tested before ledger mutation |
+| Observability | Micrometer metrics and structured logs track latency, success/failure, validation failures, prompt-injection detections, cache hits, retries, timeouts, and cost |
+| Cost control | Redis caches extraction results by receipt hash and revalidates cached outputs before reuse |
+| Retrieval | pgvector powers merchant normalization, semantic receipt search, grounded Q&A, and source receipt tracking |
+| Agent boundary | Finance agent tools are read-only, allowlisted, and audited in `ai_tool_call_audit` |
+
 ## Reliability Patterns
 
 LedgerLens uses several backend patterns that are common in payment, finance, and high-scale SaaS systems:
@@ -192,6 +229,9 @@ LedgerLens uses several backend patterns that are common in payment, finance, an
 - **Distributed duplicate lock:** uses Redis to prevent concurrent workers from processing the same receipt image at the same time.
 - **Terminal state modeling:** receipts move into explicit final states instead of silently failing.
 - **Double-entry validation:** ledger entries must balance before they are persisted.
+- **AI output gating:** probabilistic model output is sanitized, schema-validated, and blocked from ledger mutation when suspicious or inconsistent.
+- **Grounded retrieval:** pgvector-backed receipt search returns source receipts for spending answers instead of relying on unsupported model memory.
+- **Agent permission boundary:** finance-agent tools are read-only, allowlisted, and audited per call.
 - **External I/O isolation:** long-running MinIO and AI extraction calls do not hold database transactions open.
 - **SSE status streaming:** clients get live processing updates without aggressive polling.
 
@@ -300,6 +340,10 @@ Current test coverage includes:
 - receipt processing deduplication paths
 - AI extraction validation and review routing
 - offline AI extraction evaluation report generation
+- prompt-injection detection and sanitization
+- Redis AI extraction caching
+- pgvector merchant normalization
+- grounded spending Q&A and read-only finance-agent routing
 - Spring Boot context loading
 
 ## AI Extraction Evaluation
@@ -414,17 +458,26 @@ These numbers are from a local benchmark snapshot and should be interpreted as e
 
 ```text
 src/main/java/com/ledgerlens
+|-- agent       # read-only finance agent and tool-call audit
+|-- ai          # local embedding service
 |-- auth        # registration, login, refresh, logout
 |-- config      # external service configuration
 |-- exception   # global API error handling
-|-- insights    # spending insight generation
+|-- insights    # spending insight generation and grounded Q&A
 |-- ledger      # accounts, journal entries, double-entry posting
-|-- merchant    # merchant normalization
+|-- merchant    # pgvector merchant normalization
 |-- outbox      # transactional outbox publisher
-|-- receipt     # upload, processing, extraction, summaries
+|-- receipt     # upload, processing, extraction, validation, summaries
 |-- security    # JWT filters, token service, rate limiting
 `-- user        # user entity and repository
 ```
+
+## Resume Bullets
+
+- Built LedgerLens, a Spring Boot and React receipt-intelligence platform with MinIO direct uploads, transactional outbox, RabbitMQ workers, Redis deduplication locks, SSE status updates, and PostgreSQL-backed double-entry ledger posting.
+- Designed an LLM extraction boundary with swappable providers, structured output validation, prompt-injection defenses, human review routing, Redis result caching, Micrometer/Prometheus metrics, and an offline model evaluation harness.
+- Added pgvector-powered merchant normalization, semantic receipt retrieval, grounded spending Q&A with source receipts, and a read-only finance agent with allowlisted tools plus audited tool calls.
+- Modeled production reliability patterns including idempotency keys, at-least-once queue handling, DLQ retries, terminal receipt states, ledger balance checks, and external API isolation from database transactions.
 
 ## Design Notes
 
@@ -432,7 +485,7 @@ This project intentionally favors reliability and clear boundaries over a simple
 
 The codebase also separates slow external I/O from database transactions. Receipt images are downloaded from MinIO and sent to the AI extraction service outside long-running transactional sections, while final database updates happen in focused persistence methods.
 
-The main engineering concerns modeled in this project are distributed consistency, asynchronous workflow orchestration, retry safety, event durability, queue-driven scalability, ledger correctness, and operational visibility into background processing.
+The main engineering concerns modeled in this project are distributed consistency, asynchronous workflow orchestration, retry safety, event durability, queue-driven scalability, ledger correctness, AI reliability, retrieval grounding, security boundaries, and operational visibility into background processing.
 
 ## License
 
