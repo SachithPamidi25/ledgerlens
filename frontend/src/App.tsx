@@ -220,6 +220,17 @@ function isCurrencyCode(value: unknown): value is CurrencyCode {
   return typeof value === "string" && currencyOptions.some((currency) => currency.code === value);
 }
 
+const DISPLAY_CURRENCY_KEY = "ledgerlens.currency";
+
+function readDisplayCurrency(): CurrencyCode {
+  const saved = localStorage.getItem(DISPLAY_CURRENCY_KEY);
+  return isCurrencyCode(saved) ? saved : "INR";
+}
+
+function writeDisplayCurrency(currency: CurrencyCode) {
+  localStorage.setItem(DISPLAY_CURRENCY_KEY, currency);
+}
+
 function isAppPage(value: unknown): value is AppPage {
   return typeof value === "string" && navItems.some((item) => item.id === value);
 }
@@ -381,10 +392,7 @@ function Dashboard({
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
   const [correctingReceiptId, setCorrectingReceiptId] = useState<string | null>(null);
   const [deletingLedger, setDeletingLedger] = useState(false);
-  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(() => {
-    const saved = localStorage.getItem("ledgerlens.currency");
-    return isCurrencyCode(saved) ? saved : "INR";
-  });
+  const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(() => readDisplayCurrency());
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -417,7 +425,7 @@ function Dashboard({
   }, [loadData]);
 
   useEffect(() => {
-    localStorage.setItem("ledgerlens.currency", displayCurrency);
+    writeDisplayCurrency(displayCurrency);
   }, [displayCurrency]);
 
   useEffect(() => {
@@ -578,7 +586,13 @@ function Dashboard({
     setPreferences((current) => ({ ...current, [key]: value }));
   }
 
+  function handleDisplayCurrencyChange(currency: CurrencyCode) {
+    writeDisplayCurrency(currency);
+    setDisplayCurrency(currency);
+  }
+
   function resetBrowserSettings() {
+    writeDisplayCurrency("INR");
     setDisplayCurrency("INR");
     setPreferences(defaultPreferences);
     setPage(defaultPreferences.defaultPage);
@@ -695,7 +709,7 @@ function Dashboard({
             preferences={preferences}
             deletingLedger={deletingLedger}
             onToggleTheme={onToggleTheme}
-            onCurrencyChange={setDisplayCurrency}
+            onCurrencyChange={handleDisplayCurrencyChange}
             onPreferenceChange={updatePreference}
             onResetBrowserSettings={resetBrowserSettings}
             onRefresh={loadData}
