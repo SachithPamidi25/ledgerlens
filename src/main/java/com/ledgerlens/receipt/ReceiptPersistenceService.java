@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.ledgerlens.insights.ReceiptSemanticIndexService;
 import com.ledgerlens.ledger.LedgerPostingService;
 import com.ledgerlens.merchant.MerchantNormalizationService;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
+import com.ledgerlens.receipt.validation.ReceiptExtractionValidationError;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;

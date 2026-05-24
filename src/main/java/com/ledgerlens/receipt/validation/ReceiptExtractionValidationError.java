@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.validation;
 
 public record ReceiptExtractionValidationError(
         String field,

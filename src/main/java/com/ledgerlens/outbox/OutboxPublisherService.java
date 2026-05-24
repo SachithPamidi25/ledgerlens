@@ -1,7 +1,7 @@
 package com.ledgerlens.outbox;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ledgerlens.receipt.ReceiptProcessingMessage;
+import com.ledgerlens.receipt.processing.ReceiptProcessingMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;

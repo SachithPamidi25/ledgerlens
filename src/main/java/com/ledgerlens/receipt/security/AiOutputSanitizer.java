@@ -1,5 +1,7 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.security;
 
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
+import com.ledgerlens.receipt.validation.ReceiptExtractionValidationError;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

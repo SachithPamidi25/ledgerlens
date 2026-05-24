@@ -1,6 +1,7 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.ledgerlens.receipt.MerchantCategory;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;

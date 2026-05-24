@@ -1,5 +1,7 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.validation;
 
+import com.ledgerlens.receipt.MerchantCategory;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

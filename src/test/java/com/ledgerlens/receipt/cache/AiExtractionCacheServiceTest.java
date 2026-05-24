@@ -1,7 +1,9 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.cache;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.ledgerlens.receipt.MerchantCategory;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;

@@ -1,9 +1,9 @@
 package com.ledgerlens.receipt.eval;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.ledgerlens.receipt.AiExtractionClient;
-import com.ledgerlens.receipt.ReceiptExtractionResult;
-import com.ledgerlens.receipt.ReceiptExtractionValidator;
+import com.ledgerlens.receipt.extraction.AiExtractionClient;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
+import com.ledgerlens.receipt.validation.ReceiptExtractionValidator;
 
 import java.math.BigDecimal;
 import java.nio.file.Files;

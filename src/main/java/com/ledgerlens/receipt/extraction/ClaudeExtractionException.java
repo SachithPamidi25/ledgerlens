@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 /**
  * Base exception for all Claude extraction failures.

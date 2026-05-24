@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 /** Transient failure — safe to retry. Network errors, timeouts, 429s. */
 public class ClaudeTransientException extends ClaudeExtractionException {

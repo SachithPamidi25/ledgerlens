@@ -1,6 +1,6 @@
 package com.ledgerlens.receipt.eval;
 
-import com.ledgerlens.receipt.ReceiptExtractionResult;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
 
 import java.nio.file.Path;
 

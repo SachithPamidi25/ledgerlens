@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.processing;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;

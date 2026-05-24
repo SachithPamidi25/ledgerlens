@@ -1,8 +1,8 @@
 package com.ledgerlens.receipt.eval;
 
-import com.ledgerlens.receipt.AiExtractionClient;
+import com.ledgerlens.receipt.extraction.AiExtractionClient;
 import com.ledgerlens.receipt.MerchantCategory;
-import com.ledgerlens.receipt.ReceiptExtractionResult;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;

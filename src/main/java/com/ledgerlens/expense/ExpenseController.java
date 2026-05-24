@@ -1,5 +1,6 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.expense;
 
+import com.ledgerlens.receipt.ReceiptService;
 import com.ledgerlens.security.UserPrincipal;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;

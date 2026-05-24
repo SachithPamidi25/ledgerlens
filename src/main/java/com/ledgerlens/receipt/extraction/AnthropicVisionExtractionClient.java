@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.models.messages.Base64ImageSource;
@@ -8,6 +8,7 @@ import com.anthropic.models.messages.Message;
 import com.anthropic.models.messages.MessageCreateParams;
 import com.anthropic.models.messages.MessageParam;
 import com.anthropic.models.messages.TextBlock;
+import com.ledgerlens.receipt.security.AiSecurityPolicy;
 import com.anthropic.models.messages.TextBlockParam;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.bulkhead.annotation.Bulkhead;

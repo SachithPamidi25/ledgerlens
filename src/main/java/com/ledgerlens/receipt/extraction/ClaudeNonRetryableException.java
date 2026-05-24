@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 /**
  * Permanent failure — must NOT be retried.

@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 /**
  * Placeholder adapter for a future OpenAI vision implementation.

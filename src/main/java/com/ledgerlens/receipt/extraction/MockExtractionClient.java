@@ -1,5 +1,6 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
+import com.ledgerlens.receipt.MerchantCategory;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 

@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.security;
 
 import org.springframework.stereotype.Component;
 

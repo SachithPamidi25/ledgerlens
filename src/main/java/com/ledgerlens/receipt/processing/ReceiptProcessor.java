@@ -1,5 +1,7 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.processing;
 
+import com.ledgerlens.receipt.ReceiptStatus;
+import com.ledgerlens.receipt.extraction.ClaudeNonRetryableException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;

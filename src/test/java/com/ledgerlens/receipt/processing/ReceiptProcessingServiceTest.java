@@ -1,6 +1,17 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.processing;
 
 import com.ledgerlens.config.StorageService;
+import com.ledgerlens.receipt.MerchantCategory;
+import com.ledgerlens.receipt.ReceiptPersistenceService;
+import com.ledgerlens.receipt.ReceiptRepository;
+import com.ledgerlens.receipt.ReceiptStatus;
+import com.ledgerlens.receipt.cache.AiExtractionCacheService;
+import com.ledgerlens.receipt.extraction.AiExtractionClient;
+import com.ledgerlens.receipt.extraction.ReceiptExtractionResult;
+import com.ledgerlens.receipt.observability.AiObservabilityService;
+import com.ledgerlens.receipt.security.AiOutputSanitizer;
+import com.ledgerlens.receipt.validation.ReceiptExtractionValidationError;
+import com.ledgerlens.receipt.validation.ReceiptExtractionValidator;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.data.redis.core.StringRedisTemplate;

@@ -1,5 +1,7 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.expense;
 
+import com.ledgerlens.receipt.Receipt;
+import com.ledgerlens.receipt.ReceiptRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

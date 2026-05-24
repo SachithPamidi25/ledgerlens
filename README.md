@@ -462,12 +462,19 @@ src/main/java/com/ledgerlens
 |-- ai          # local embedding service
 |-- auth        # registration, login, refresh, logout
 |-- config      # external service configuration
+|-- expense     # spending summary API
 |-- exception   # global API error handling
 |-- insights    # spending insight generation and grounded Q&A
 |-- ledger      # accounts, journal entries, double-entry posting
 |-- merchant    # pgvector merchant normalization
 |-- outbox      # transactional outbox publisher
-|-- receipt     # upload, processing, extraction, validation, summaries
+|-- receipt     # upload APIs, receipt records, review workflow
+|   |-- cache          # Redis extraction result cache
+|   |-- extraction     # swappable AI provider clients and result DTOs
+|   |-- observability  # AI extraction metrics and structured logging
+|   |-- processing     # RabbitMQ worker, orchestration, DLQ handling
+|   |-- security       # AI output sanitization and prompt-injection policy
+|   `-- validation     # structured receipt output validation
 |-- security    # JWT filters, token service, rate limiting
 `-- user        # user entity and repository
 ```

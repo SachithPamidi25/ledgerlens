@@ -9,6 +9,7 @@ import com.ledgerlens.ledger.JournalEntryType;
 import com.ledgerlens.ledger.LedgerPostingService;
 import com.ledgerlens.outbox.OutboxEvent;
 import com.ledgerlens.outbox.OutboxEventRepository;
+import com.ledgerlens.receipt.processing.ReceiptProcessingMessage;
 import com.ledgerlens.user.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

@@ -2,7 +2,7 @@ package com.ledgerlens.receipt.eval;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.ledgerlens.receipt.ReceiptExtractionValidator;
+import com.ledgerlens.receipt.validation.ReceiptExtractionValidator;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;

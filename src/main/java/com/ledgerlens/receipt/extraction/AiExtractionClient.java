@@ -1,4 +1,4 @@
-package com.ledgerlens.receipt;
+package com.ledgerlens.receipt.extraction;
 
 public interface AiExtractionClient {
     ReceiptExtractionResult extractReceiptData(byte[] imageBytes);
