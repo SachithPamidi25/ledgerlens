@@ -1,0 +1,16 @@
+.git
+.github
+.idea
+.vscode
+.claude
+target
+frontend
+scripts
+*.log
+*.gz
+.env
+.env.*
+SELECTED_PROJECT_CODE.md
+GITHUB_PROFILE_README.md
+README.md
+eval-report.md
