@@ -700,7 +700,9 @@ function Dashboard({
             onDeleteReceipt={handleDeleteReceipt}
           />
         )}
-        {page === "insights" && <InsightsPage summary={summary} insights={insights} totals={totals} loading={loading} />}
+        {page === "insights" && (
+          <InsightsPage receipts={receiptList} summary={summary} insights={insights} totals={totals} loading={loading} />
+        )}
         {page === "settings" && (
           <SettingsPage
             theme={theme}
@@ -1106,18 +1108,40 @@ function ReceiptsPage({
 }
 
 function InsightsPage({
+  receipts,
   summary,
   insights,
   totals,
   loading
 }: {
+  receipts: Receipt[];
   summary: MonthlySummary | null;
   insights: InsightsResponse | null;
   totals: Totals;
   loading: boolean;
 }) {
+  const analytics = useMemo(() => buildAnalytics(receipts, totals.currency), [receipts, totals.currency]);
+
   return (
     <section className="insights-layout">
+      <div className="analytics-kpi-strip span-2">
+        <MiniStat label="Average receipt" value={money(analytics.averageReceipt, totals.currency)} />
+        <MiniStat label="Highest receipt" value={analytics.highValueReceipts[0] ? money(Number(analytics.highValueReceipts[0].total ?? 0), totals.currency) : "-"} />
+        <MiniStat label="Review queue" value={String(analytics.needsReview)} tone={analytics.needsReview > 0 ? "danger" : undefined} />
+        <MiniStat label="Duplicates" value={String(analytics.duplicates)} />
+      </div>
+
+      <div className="panel span-2 analytics-trend-panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Spend Trend</h2>
+            <p>{analytics.monthlyTrend.length ? `${analytics.monthlyTrend.length} active months from completed receipts` : "Waiting for completed receipts"}</p>
+          </div>
+          <BarChart3 size={22} />
+        </div>
+        <MonthlySpendChart rows={analytics.monthlyTrend} currency={totals.currency} loading={loading} />
+      </div>
+
       <div className="panel">
         <div className="panel-heading">
           <div>
@@ -1136,6 +1160,28 @@ function InsightsPage({
           </div>
         </div>
         <MerchantList summary={summary} currency={totals.currency} />
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Receipt Operations</h2>
+            <p>Status mix across the loaded ledger</p>
+          </div>
+          <ListChecks size={22} />
+        </div>
+        <StatusMix rows={analytics.statusMix} total={receipts.length} />
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>High-Value Receipts</h2>
+            <p>Largest completed transactions</p>
+          </div>
+          <Target size={22} />
+        </div>
+        <HighValueList receipts={analytics.highValueReceipts} currency={totals.currency} />
       </div>
 
       <div className="panel span-2">
@@ -1877,6 +1923,87 @@ function MerchantList({ summary, currency }: { summary: MonthlySummary | null; c
   );
 }
 
+function MonthlySpendChart({
+  rows,
+  currency,
+  loading
+}: {
+  rows: Array<{ key: string; label: string; total: number; count: number }>;
+  currency: string;
+  loading: boolean;
+}) {
+  const max = Math.max(...rows.map((row) => row.total), 1);
+
+  if (!loading && !rows.length) {
+    return <p className="empty-state">No completed receipt trend yet.</p>;
+  }
+
+  return (
+    <div className="monthly-chart" aria-label="Monthly spend trend">
+      {rows.map((row) => {
+        const height = Math.max((row.total / max) * 100, 8);
+        return (
+          <div className="monthly-chart-column" key={row.key}>
+            <div className="monthly-chart-value">{money(row.total, currency)}</div>
+            <div className="monthly-chart-bar" aria-hidden="true">
+              <span style={{ "--bar-size": `${height}%` } as React.CSSProperties} />
+            </div>
+            <strong>{row.label}</strong>
+            <small>{row.count} receipts</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function StatusMix({ rows, total }: { rows: Array<{ status: ReceiptStatus; count: number }>; total: number }) {
+  if (!rows.length) {
+    return <p className="empty-state">No receipt status data yet.</p>;
+  }
+
+  return (
+    <div className="status-mix">
+      {rows.map((row) => {
+        const percent = total ? Math.round((row.count / total) * 100) : 0;
+        return (
+          <div className="status-mix-row" key={row.status}>
+            <div>
+              <StatusBadge status={row.status} />
+              <strong>{row.count}</strong>
+            </div>
+            <div className="bar-track">
+              <span style={{ width: `${Math.max(percent, row.count ? 5 : 0)}%` }} />
+            </div>
+            <small>{percent}% of loaded receipts</small>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function HighValueList({ receipts, currency }: { receipts: Receipt[]; currency: string }) {
+  if (!receipts.length) {
+    return <p className="empty-state">No completed receipt totals yet.</p>;
+  }
+
+  return (
+    <div className="high-value-list">
+      {receipts.map((receipt, index) => (
+        <div className="high-value-row" key={receipt.id}>
+          <span>{index + 1}</span>
+          <div>
+            <strong>{receipt.vendor || receipt.originalFilename}</strong>
+            <small>{receipt.receiptDate ? formatDate(receipt.receiptDate) : formatDate(receipt.createdAt)}</small>
+          </div>
+          <b>{money(Number(receipt.total ?? 0), receipt.currency ?? currency)}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SettingRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="setting-row">
@@ -1983,6 +2110,52 @@ function summarizeReceipts(receipts: Receipt[], currency: CurrencyCode): Totals 
   };
 }
 
+function buildAnalytics(receipts: Receipt[], currency: CurrencyCode) {
+  const completed = receipts.filter((receipt) => receipt.status === "COMPLETED");
+  const monthlyTotals = new Map<string, { total: number; count: number }>();
+
+  completed.forEach((receipt) => {
+    const key = receiptMonthKey(receipt);
+    const current = monthlyTotals.get(key) ?? { total: 0, count: 0 };
+    monthlyTotals.set(key, {
+      total: current.total + Number(receipt.total ?? 0),
+      count: current.count + 1
+    });
+  });
+
+  const monthlyTrend = Array.from(monthlyTotals.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([key, value]) => ({
+      key,
+      label: shortMonthLabel(key),
+      total: value.total,
+      count: value.count
+    }));
+
+  const statusOrder: ReceiptStatus[] = ["COMPLETED", "NEEDS_REVIEW", "PROCESSING", "PENDING", "FAILED", "PERMANENTLY_FAILED", "DUPLICATE"];
+  const statusMix = statusOrder
+    .map((status) => ({
+      status,
+      count: receipts.filter((receipt) => receipt.status === status).length
+    }))
+    .filter((row) => row.count > 0);
+
+  const highValueReceipts = [...completed]
+    .sort((a, b) => Number(b.total ?? 0) - Number(a.total ?? 0))
+    .slice(0, 5);
+
+  return {
+    monthlyTrend,
+    statusMix,
+    highValueReceipts,
+    averageReceipt: completed.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0) / Math.max(completed.length, 1),
+    needsReview: receipts.filter((receipt) => receipt.status === "NEEDS_REVIEW").length,
+    duplicates: receipts.filter((receipt) => receipt.status === "DUPLICATE").length,
+    currency
+  };
+}
+
 function filterReceipts(receipts: Receipt[], query: string) {
   const term = query.trim().toLowerCase();
   if (!term) return receipts;
@@ -2054,6 +2227,11 @@ function groupReceiptsByDate(receipts: Receipt[]) {
 function formatMonthLabel(monthKey: string) {
   const [year, month] = monthKey.split("-").map(Number);
   return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
+}
+
+function shortMonthLabel(monthKey: string) {
+  const [year, month] = monthKey.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-IN", { month: "short", year: "2-digit" }).format(new Date(year, month - 1, 1));
 }
 
 function normalizeCategories(

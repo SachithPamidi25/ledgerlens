@@ -1133,9 +1133,143 @@ select:focus {
 
 .insight-list,
 .category-list,
-.timeline-list {
+.timeline-list,
+.status-mix,
+.high-value-list {
   display: grid;
   gap: 12px;
+}
+
+.analytics-kpi-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.analytics-trend-panel {
+  overflow: hidden;
+}
+
+.monthly-chart {
+  min-height: 270px;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+  padding-top: 6px;
+}
+
+.monthly-chart-column {
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto 180px auto auto;
+  gap: 8px;
+  text-align: center;
+}
+
+.monthly-chart-value {
+  min-height: 18px;
+  color: #536059;
+  font-size: 12px;
+  font-weight: 900;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.monthly-chart-bar {
+  height: 180px;
+  display: flex;
+  align-items: end;
+  justify-content: center;
+  border: 1px solid #edf1ef;
+  border-radius: 8px;
+  background: #f7faf8;
+  overflow: hidden;
+}
+
+.monthly-chart-bar span {
+  width: min(54px, 58%);
+  height: var(--bar-size);
+  min-height: 8px;
+  border-radius: 8px 8px 0 0;
+  background: linear-gradient(180deg, #2f7aa8, #176b4d);
+}
+
+.monthly-chart-column strong {
+  color: #17201d;
+  font-size: 13px;
+}
+
+.monthly-chart-column small,
+.status-mix-row small,
+.high-value-row small {
+  color: #62706a;
+}
+
+.status-mix-row {
+  display: grid;
+  gap: 8px;
+}
+
+.status-mix-row > div:first-child {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-mix-row > div:first-child strong {
+  font-size: 18px;
+}
+
+.status-mix-row small {
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.high-value-row {
+  min-height: 58px;
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  border-top: 1px solid #edf1ef;
+  padding-top: 12px;
+}
+
+.high-value-row:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.high-value-row > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #176b4d;
+  background: #e6f2ed;
+  font-weight: 900;
+}
+
+.high-value-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.high-value-row strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.high-value-row b {
+  font-size: 14px;
+  white-space: nowrap;
 }
 
 .insight-item {
@@ -2080,6 +2214,36 @@ select:focus {
   color: var(--text);
 }
 
+:root[data-theme="dark"] .monthly-chart-value,
+:root[data-theme="dark"] .monthly-chart-column small,
+:root[data-theme="dark"] .status-mix-row small,
+:root[data-theme="dark"] .high-value-row small {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .monthly-chart-column strong,
+:root[data-theme="dark"] .high-value-row strong {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .monthly-chart-bar {
+  border-color: var(--border);
+  background: var(--surface-muted);
+}
+
+:root[data-theme="dark"] .monthly-chart-bar span {
+  background: linear-gradient(180deg, var(--accent-blue), var(--accent));
+}
+
+:root[data-theme="dark"] .high-value-row {
+  border-top-color: var(--border);
+}
+
+:root[data-theme="dark"] .high-value-row > span {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+
 :root[data-theme="dark"] .metric-icon {
   background: var(--accent-soft);
 }
@@ -2263,6 +2427,7 @@ select:focus {
 
   .overview-grid,
   .upload-layout,
+  .analytics-kpi-strip,
   .expense-card-grid,
   .insights-layout,
   .settings-layout {
@@ -2277,6 +2442,7 @@ select:focus {
 @media (max-width: 940px) {
   .auth-shell,
   .metric-grid,
+  .monthly-chart,
   .expense-summary-grid,
   .status-grid {
     grid-template-columns: 1fr;
@@ -2313,6 +2479,42 @@ select:focus {
   .expenses-hero {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .monthly-chart {
+    min-height: 0;
+  }
+
+  .monthly-chart-column {
+    grid-template-columns: 82px minmax(0, 1fr) 76px;
+    grid-template-rows: auto auto;
+    align-items: center;
+    text-align: left;
+  }
+
+  .monthly-chart-value {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    text-align: right;
+  }
+
+  .monthly-chart-bar {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    height: 42px;
+    align-items: center;
+    justify-content: flex-start;
+  }
+
+  .monthly-chart-bar span {
+    width: var(--bar-size);
+    height: 58%;
+    border-radius: 0 999px 999px 0;
+  }
+
+  .monthly-chart-column strong,
+  .monthly-chart-column small {
+    grid-column: 1;
   }
 
   .month-select {
