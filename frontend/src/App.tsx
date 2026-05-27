@@ -60,6 +60,8 @@ type WorkspacePreferences = {
   defaultPage: AppPage;
   monthlyBudget: number;
   budgetWarningPercent: number;
+  compactMode: boolean;
+  autoRefreshSeconds: number;
 };
 
 type Totals = {
@@ -100,7 +102,9 @@ const defaultPreferences: WorkspacePreferences = {
   liveStatusUpdates: true,
   defaultPage: "overview",
   monthlyBudget: 0,
-  budgetWarningPercent: 80
+  budgetWarningPercent: 80,
+  compactMode: false,
+  autoRefreshSeconds: 0
 };
 
 const navItems: Array<{ id: AppPage; label: string; icon: React.ReactNode }> = [
@@ -253,7 +257,12 @@ function readWorkspacePreferences(): WorkspacePreferences {
       budgetWarningPercent:
         typeof parsed.budgetWarningPercent === "number"
           ? parsed.budgetWarningPercent
-          : defaultPreferences.budgetWarningPercent
+          : defaultPreferences.budgetWarningPercent,
+      compactMode: parsed.compactMode ?? defaultPreferences.compactMode,
+      autoRefreshSeconds:
+        typeof parsed.autoRefreshSeconds === "number"
+          ? parsed.autoRefreshSeconds
+          : defaultPreferences.autoRefreshSeconds
     };
   } catch {
     return defaultPreferences;
@@ -431,6 +440,20 @@ function Dashboard({
   useEffect(() => {
     localStorage.setItem("ledgerlens.preferences", JSON.stringify(preferences));
   }, [preferences]);
+
+  useEffect(() => {
+    document.documentElement.dataset.density = preferences.compactMode ? "compact" : "comfortable";
+  }, [preferences.compactMode]);
+
+  useEffect(() => {
+    if (!preferences.autoRefreshSeconds) return;
+
+    const intervalId = window.setInterval(() => {
+      loadData();
+    }, preferences.autoRefreshSeconds * 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [loadData, preferences.autoRefreshSeconds]);
 
   useEffect(() => {
     if (!preferences.liveStatusUpdates || !activeReceiptIds.length) return;
@@ -1238,6 +1261,8 @@ function SettingsPage({
       defaultPage: preferences.defaultPage,
       monthlyBudget: preferences.monthlyBudget,
       budgetWarningPercent: preferences.budgetWarningPercent,
+      compactMode: preferences.compactMode,
+      autoRefreshSeconds: preferences.autoRefreshSeconds,
       session: tokenPresent ? "active" : "missing"
     };
 
@@ -1280,6 +1305,39 @@ function SettingsPage({
         <div className="preference-controls">
           <ThemePreference theme={theme} onToggle={onToggleTheme} />
           <CurrencySelect value={displayCurrency} onChange={onCurrencyChange} />
+        </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-heading">
+          <div>
+            <h2>Display & Refresh</h2>
+            <p>Adjust workspace density and background sync.</p>
+          </div>
+          <TimerReset size={22} />
+        </div>
+        <div className="toggle-list">
+          <ToggleRow
+            icon={<Layers3 size={18} />}
+            label="Compact workspace"
+            detail="Reduce spacing in panels and ledger rows"
+            checked={preferences.compactMode}
+            onChange={(checked) => onPreferenceChange("compactMode", checked)}
+          />
+          <SelectPreferenceRow
+            icon={<RefreshCcw size={18} />}
+            label="Auto-refresh"
+            detail="Reload dashboard data while the workspace is open"
+            value={String(preferences.autoRefreshSeconds)}
+            onChange={(value) => onPreferenceChange("autoRefreshSeconds", Number(value))}
+            options={[
+              { value: "0", label: "Off" },
+              { value: "15", label: "15 sec" },
+              { value: "30", label: "30 sec" },
+              { value: "60", label: "1 min" },
+              { value: "120", label: "2 min" }
+            ]}
+          />
         </div>
       </div>
 
@@ -2034,6 +2092,39 @@ function ToggleRow({
         <small>{detail}</small>
       </span>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    </label>
+  );
+}
+
+function SelectPreferenceRow({
+  icon,
+  label,
+  detail,
+  value,
+  options,
+  onChange
+}: {
+  icon: React.ReactNode;
+  label: string;
+  detail: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="select-row">
+      <span className="toggle-icon">{icon}</span>
+      <span>
+        <strong>{label}</strong>
+        <small>{detail}</small>
+      </span>
+      <select value={value} onChange={(event) => onChange(event.target.value)}>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
     </label>
   );
 }

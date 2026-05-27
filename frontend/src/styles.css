@@ -1815,7 +1815,8 @@ select:focus {
   gap: 10px;
 }
 
-.toggle-row {
+.toggle-row,
+.select-row {
   min-height: 68px;
   grid-template-columns: 38px minmax(0, 1fr) auto;
   align-items: center;
@@ -1827,22 +1828,26 @@ select:focus {
   color: #17201d;
 }
 
-.toggle-row:hover {
+.toggle-row:hover,
+.select-row:hover {
   border-color: var(--accent);
   background: var(--accent-soft-2);
 }
 
-.toggle-row > span:nth-child(2) {
+.toggle-row > span:nth-child(2),
+.select-row > span:nth-child(2) {
   min-width: 0;
   display: grid;
   gap: 4px;
 }
 
-.toggle-row strong {
+.toggle-row strong,
+.select-row strong {
   color: #17201d;
 }
 
-.toggle-row small {
+.toggle-row small,
+.select-row small {
   color: #62706a;
   line-height: 1.35;
 }
@@ -1885,6 +1890,50 @@ select:focus {
 
 .toggle-row input:checked::before {
   transform: translateX(20px);
+}
+
+.select-row select {
+  width: 128px;
+  min-height: 38px;
+  padding: 0 10px;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+:root[data-density="compact"] .workspace-main {
+  padding-top: 20px;
+}
+
+:root[data-density="compact"] .page-stack,
+:root[data-density="compact"] .settings-layout,
+:root[data-density="compact"] .insights-layout,
+:root[data-density="compact"] .overview-grid,
+:root[data-density="compact"] .upload-layout,
+:root[data-density="compact"] .expenses-page {
+  gap: 12px;
+}
+
+:root[data-density="compact"] .panel,
+:root[data-density="compact"] .metric-card,
+:root[data-density="compact"] .mini-stat,
+:root[data-density="compact"] .expense-period-card {
+  padding: 16px;
+}
+
+:root[data-density="compact"] .panel-heading {
+  margin-bottom: 12px;
+}
+
+:root[data-density="compact"] .ledger-row {
+  min-height: 58px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+:root[data-density="compact"] .toggle-row,
+:root[data-density="compact"] .select-row {
+  min-height: 58px;
+  padding: 9px 10px;
 }
 
 .theme-preference {
@@ -1991,6 +2040,7 @@ select:focus {
 :root[data-theme="dark"] .currency-select,
 :root[data-theme="dark"] .theme-preference,
 :root[data-theme="dark"] .toggle-row,
+:root[data-theme="dark"] .select-row,
 :root[data-theme="dark"] .budget-meter,
 :root[data-theme="dark"] .run-state,
 :root[data-theme="dark"] .receipt-preview {
@@ -1999,11 +2049,13 @@ select:focus {
   color: var(--text);
 }
 
-:root[data-theme="dark"] .toggle-row strong {
+:root[data-theme="dark"] .toggle-row strong,
+:root[data-theme="dark"] .select-row strong {
   color: var(--text);
 }
 
-:root[data-theme="dark"] .toggle-row small {
+:root[data-theme="dark"] .toggle-row small,
+:root[data-theme="dark"] .select-row small {
   color: var(--muted);
 }
 
@@ -2013,6 +2065,7 @@ select:focus {
 }
 
 :root[data-theme="dark"] .toggle-row:hover,
+:root[data-theme="dark"] .select-row:hover,
 :root[data-theme="dark"] .row-action-button:hover,
 :root[data-theme="dark"] .startup-option:hover,
 :root[data-theme="dark"] .startup-option.active {
@@ -2591,8 +2644,13 @@ select:focus {
     grid-template-columns: 1fr;
   }
 
-  .toggle-row {
+  .toggle-row,
+  .select-row {
     grid-template-columns: 34px minmax(0, 1fr) auto;
+  }
+
+  .select-row select {
+    width: 112px;
   }
 
   .startup-grid,
