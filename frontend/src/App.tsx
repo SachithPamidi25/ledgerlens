@@ -10,6 +10,7 @@ import {
   Database,
   Download,
   Edit3,
+  Eye,
   FileUp,
   Home,
   Layers3,
@@ -30,9 +31,10 @@ import {
   TimerReset,
   Trash2,
   UploadCloud,
-  WalletCards
+  WalletCards,
+  X
 } from "lucide-react";
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   clearTokens,
   correctReceipt,
@@ -399,6 +401,7 @@ function Dashboard({
   const [activeReceiptIds, setActiveReceiptIds] = useState<string[]>([]);
   const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
+  const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [correctingReceiptId, setCorrectingReceiptId] = useState<string | null>(null);
   const [deletingLedger, setDeletingLedger] = useState(false);
   const [displayCurrency, setDisplayCurrency] = useState<CurrencyCode>(() => readDisplayCurrency());
@@ -502,6 +505,13 @@ function Dashboard({
     );
   }, [activeReceiptIds.length, receipts]);
 
+  useEffect(() => {
+    if (!selectedReceipt || !receipts) return;
+
+    const updatedReceipt = receipts.content.find((receipt) => receipt.id === selectedReceipt.id);
+    setSelectedReceipt(updatedReceipt ?? null);
+  }, [receipts, selectedReceipt]);
+
   const receiptList = receipts?.content ?? [];
   const totals = useMemo<Totals>(() => {
     const completedReceipts = receiptList.filter((receipt) => receipt.status === "COMPLETED");
@@ -564,6 +574,7 @@ function Dashboard({
     setError("");
     try {
       await deleteReceipt(receipt.id);
+      setSelectedReceipt((current) => (current?.id === receipt.id ? null : current));
       await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -717,7 +728,9 @@ function Dashboard({
             deletingReceiptId={deletingReceiptId}
             editingReceipt={editingReceipt}
             correctingReceiptId={correctingReceiptId}
+            selectedReceipt={selectedReceipt}
             onEditReceipt={setEditingReceipt}
+            onViewReceipt={setSelectedReceipt}
             onCancelEdit={() => setEditingReceipt(null)}
             onCorrectReceipt={handleCorrectReceipt}
             onDeleteReceipt={handleDeleteReceipt}
@@ -740,6 +753,19 @@ function Dashboard({
             onRefresh={loadData}
             onLogout={handleLogout}
             onDeleteLedger={handleDeleteLedger}
+          />
+        )}
+        {selectedReceipt && (
+          <ReceiptDetailDrawer
+            receipt={selectedReceipt}
+            deleting={deletingReceiptId === selectedReceipt.id}
+            onClose={() => setSelectedReceipt(null)}
+            onEdit={(receipt) => {
+              setEditingReceipt(receipt);
+              setSelectedReceipt(null);
+              setPage("receipts");
+            }}
+            onDelete={handleDeleteReceipt}
           />
         )}
       </section>
@@ -1002,7 +1028,9 @@ function ReceiptsPage({
   deletingReceiptId,
   editingReceipt,
   correctingReceiptId,
+  selectedReceipt,
   onEditReceipt,
+  onViewReceipt,
   onCancelEdit,
   onCorrectReceipt,
   onDeleteReceipt
@@ -1014,7 +1042,9 @@ function ReceiptsPage({
   deletingReceiptId: string | null;
   editingReceipt: Receipt | null;
   correctingReceiptId: string | null;
+  selectedReceipt: Receipt | null;
   onEditReceipt: (receipt: Receipt) => void;
+  onViewReceipt: (receipt: Receipt) => void;
   onCancelEdit: () => void;
   onCorrectReceipt: (receiptId: string, correction: ReceiptCorrectionRequest) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
@@ -1122,6 +1152,8 @@ function ReceiptsPage({
           receipts={visibleReceipts}
           loading={loading}
           deletingReceiptId={deletingReceiptId}
+          selectedReceiptId={selectedReceipt?.id ?? null}
+          onViewReceipt={onViewReceipt}
           onEditReceipt={onEditReceipt}
           onDeleteReceipt={onDeleteReceipt}
         />
@@ -1657,12 +1689,16 @@ function MonthlyLedger({
   receipts,
   loading,
   deletingReceiptId,
+  selectedReceiptId,
+  onViewReceipt,
   onEditReceipt,
   onDeleteReceipt
 }: {
   receipts: Receipt[];
   loading: boolean;
   deletingReceiptId: string | null;
+  selectedReceiptId: string | null;
+  onViewReceipt: (receipt: Receipt) => void;
   onEditReceipt: (receipt: Receipt) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
@@ -1684,12 +1720,14 @@ function MonthlyLedger({
             <span>{money(group.total, group.currency)}</span>
           </div>
           <LedgerTable
-            receipts={group.receipts}
-            loading={loading}
-            deletingReceiptId={deletingReceiptId}
-            onEditReceipt={onEditReceipt}
-            onDeleteReceipt={onDeleteReceipt}
-          />
+          receipts={group.receipts}
+          loading={loading}
+          deletingReceiptId={deletingReceiptId}
+          selectedReceiptId={selectedReceiptId}
+          onViewReceipt={onViewReceipt}
+          onEditReceipt={onEditReceipt}
+          onDeleteReceipt={onDeleteReceipt}
+        />
         </section>
       ))}
     </div>
@@ -1700,12 +1738,16 @@ function LedgerTable({
   receipts,
   loading,
   deletingReceiptId,
+  selectedReceiptId,
+  onViewReceipt,
   onEditReceipt,
   onDeleteReceipt
 }: {
   receipts: Receipt[];
   loading: boolean;
   deletingReceiptId: string | null;
+  selectedReceiptId: string | null;
+  onViewReceipt: (receipt: Receipt) => void;
   onEditReceipt: (receipt: Receipt) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
@@ -1739,7 +1781,7 @@ function LedgerTable({
         <span>Actions</span>
       </div>
       {rows.map(({ receipt, amount, running }) => (
-        <div className="ledger-row" key={receipt.id}>
+        <div className={selectedReceiptId === receipt.id ? "ledger-row selected" : "ledger-row"} key={receipt.id}>
           <div className="receipt-cell">
             <strong>{receipt.vendor || receipt.originalFilename}</strong>
             <span>{receipt.originalFilename}</span>
@@ -1749,6 +1791,15 @@ function LedgerTable({
           <span>{receipt.merchantCategory ? titleCase(receipt.merchantCategory) : "Uncategorized"}</span>
           <JournalPreview receipt={receipt} amount={amount} running={running} />
           <div className="row-actions">
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => onViewReceipt(receipt)}
+              aria-label={`View ${receipt.vendor || receipt.originalFilename}`}
+              title="View receipt details"
+            >
+              <Eye size={16} />
+            </button>
             <button
               className="row-action-button"
               type="button"
@@ -1774,6 +1825,167 @@ function LedgerTable({
         </div>
       ))}
     </div>
+  );
+}
+
+function ReceiptDetailDrawer({
+  receipt,
+  deleting,
+  onClose,
+  onEdit,
+  onDelete
+}: {
+  receipt: Receipt;
+  deleting: boolean;
+  onClose: () => void;
+  onEdit: (receipt: Receipt) => void;
+  onDelete: (receipt: Receipt) => void;
+}) {
+  const journalEntries = receipt.journalEntries?.length
+    ? receipt.journalEntries
+    : receipt.journalEntry
+      ? [receipt.journalEntry]
+      : [];
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div className="receipt-drawer-backdrop" role="presentation" onMouseDown={onClose}>
+      <aside
+        className="receipt-drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Receipt details for ${receipt.vendor || receipt.originalFilename}`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="receipt-drawer-header">
+          <div>
+            <span>Receipt detail</span>
+            <h2>{receipt.vendor || receipt.originalFilename}</h2>
+            <p>{receipt.originalFilename}</p>
+          </div>
+          <button className="icon-button" type="button" onClick={onClose} aria-label="Close receipt details" title="Close">
+            <X size={18} />
+          </button>
+        </header>
+
+        <div className="receipt-drawer-status">
+          <StatusBadge status={receipt.status} />
+          <strong>{receipt.total ? money(Number(receipt.total), receipt.currency ?? "INR") : "No total"}</strong>
+        </div>
+
+        <section className="detail-grid">
+          <DetailField label="Receipt date" value={receipt.receiptDate ? formatDate(receipt.receiptDate) : "Not extracted"} />
+          <DetailField label="Category" value={receipt.merchantCategory ? titleCase(receipt.merchantCategory) : "Uncategorized"} />
+          <DetailField label="Created" value={formatDateTime(receipt.createdAt)} />
+          <DetailField label="Updated" value={formatDateTime(receipt.updatedAt)} />
+          <DetailField label="Storage key" value={receipt.storageKey} wide />
+          <DetailField label="Receipt ID" value={receipt.id} wide />
+        </section>
+
+        <section className="receipt-breakdown">
+          <div className="drawer-section-heading">
+            <h3>Extraction Amounts</h3>
+          </div>
+          <DetailAmount label="Subtotal" value={receipt.subtotal} currency={receipt.currency} />
+          <DetailAmount label="Tax" value={receipt.tax} currency={receipt.currency} />
+          <DetailAmount label="Tip" value={receipt.tip} currency={receipt.currency} />
+          <DetailAmount label="Total" value={receipt.total} currency={receipt.currency} strong />
+        </section>
+
+        <section className="journal-detail-list">
+          <div className="drawer-section-heading">
+            <h3>Journal Entries</h3>
+            <span>{journalEntries.length ? `${journalEntries.length} entries` : "No journal yet"}</span>
+          </div>
+          {journalEntries.length ? (
+            journalEntries.map((entry) => <JournalEntryDetail key={entry.id} entry={entry} />)
+          ) : (
+            <p className="empty-state">No ledger journal has been posted for this receipt.</p>
+          )}
+        </section>
+
+        <footer className="receipt-drawer-actions">
+          <button
+            className="secondary-action"
+            type="button"
+            onClick={() => onEdit(receipt)}
+            disabled={receipt.status !== "COMPLETED"}
+          >
+            <Edit3 size={17} />
+            Edit entry
+          </button>
+          <button className="danger-action" type="button" onClick={() => onDelete(receipt)} disabled={deleting}>
+            {deleting ? <Loader2 size={17} /> : <Trash2 size={17} />}
+            {deleting ? "Deleting..." : "Delete receipt"}
+          </button>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function DetailField({ label, value, wide }: { label: string; value: string; wide?: boolean }) {
+  return (
+    <div className={wide ? "detail-field wide" : "detail-field"}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
+}
+
+function DetailAmount({
+  label,
+  value,
+  currency,
+  strong
+}: {
+  label: string;
+  value?: number | null;
+  currency?: string | null;
+  strong?: boolean;
+}) {
+  return (
+    <div className={strong ? "detail-amount strong" : "detail-amount"}>
+      <span>{label}</span>
+      <strong>{value === null || value === undefined ? "-" : money(Number(value), currency ?? "INR")}</strong>
+    </div>
+  );
+}
+
+function JournalEntryDetail({ entry }: { entry: NonNullable<Receipt["journalEntry"]> }) {
+  const debitTotal = entry.lines.reduce((sum, line) => sum + Number(line.debit), 0);
+  const creditTotal = entry.lines.reduce((sum, line) => sum + Number(line.credit), 0);
+
+  return (
+    <article className="journal-detail">
+      <div className="journal-detail-head">
+        <div>
+          <strong>{entry.description}</strong>
+          <span>{formatDate(entry.entryDate)} / {titleCase(entry.entryType)}</span>
+        </div>
+        <span className="balance-pill balanced">{money(debitTotal, entry.currency)} / {money(creditTotal, entry.currency)}</span>
+      </div>
+      <div className="journal-detail-lines">
+        <span>Account</span>
+        <span>Debit</span>
+        <span>Credit</span>
+        {entry.lines.map((line) => (
+          <Fragment key={`${entry.id}-${line.accountId}-${line.accountCode}`}>
+            <strong>{line.accountCode} / {line.accountName}</strong>
+            <b>{Number(line.debit) ? money(Number(line.debit), entry.currency) : "-"}</b>
+            <b>{Number(line.credit) ? money(Number(line.credit), entry.currency) : "-"}</b>
+          </Fragment>
+        ))}
+      </div>
+    </article>
   );
 }
 

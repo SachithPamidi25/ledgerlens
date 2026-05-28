@@ -1407,7 +1407,7 @@ select:focus {
 .ledger-row {
   min-width: 980px;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 148px 116px 138px minmax(300px, 1.35fr) 132px;
+  grid-template-columns: minmax(220px, 1fr) 148px 116px 138px minmax(300px, 1.35fr) 172px;
   gap: 16px;
   align-items: center;
   min-height: 74px;
@@ -1417,6 +1417,11 @@ select:focus {
 
 .ledger-row:first-child {
   border-top: 0;
+}
+
+.ledger-row.selected {
+  background: #f7faf8;
+  box-shadow: inset 3px 0 0 #176b4d;
 }
 
 .ledger-head {
@@ -1497,6 +1502,204 @@ select:focus {
   display: flex;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.row-actions .icon-button {
+  width: 36px;
+  height: 36px;
+}
+
+.receipt-drawer-backdrop {
+  position: fixed;
+  z-index: 80;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(15, 23, 19, 0.34);
+}
+
+.receipt-drawer {
+  width: min(560px, 100%);
+  height: 100vh;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto auto;
+  gap: 16px;
+  overflow-y: auto;
+  border-left: 1px solid #dbe3df;
+  background: #fff;
+  padding: 22px;
+  box-shadow: -18px 0 54px rgba(16, 24, 20, 0.18);
+}
+
+.receipt-drawer-header,
+.receipt-drawer-status,
+.receipt-drawer-actions,
+.drawer-section-heading,
+.journal-detail-head,
+.detail-amount {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.receipt-drawer-header {
+  align-items: flex-start;
+}
+
+.receipt-drawer-header > div {
+  min-width: 0;
+}
+
+.receipt-drawer-header span,
+.drawer-section-heading span,
+.detail-field span,
+.detail-amount span {
+  color: #62706a;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.receipt-drawer-header h2 {
+  margin: 5px 0;
+  font-size: 24px;
+  line-height: 1.1;
+}
+
+.receipt-drawer-header p {
+  margin: 0;
+  color: #62706a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.receipt-drawer-status {
+  min-height: 58px;
+  border: 1px solid #dbe3df;
+  border-radius: 8px;
+  padding: 12px;
+  background: #f7faf8;
+}
+
+.receipt-drawer-status strong {
+  font-size: 22px;
+  white-space: nowrap;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.detail-field {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  border: 1px solid #edf1ef;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdfc;
+}
+
+.detail-field.wide {
+  grid-column: 1 / -1;
+}
+
+.detail-field strong {
+  min-width: 0;
+  color: #17201d;
+  overflow-wrap: anywhere;
+}
+
+.receipt-breakdown,
+.journal-detail-list {
+  display: grid;
+  gap: 10px;
+}
+
+.drawer-section-heading h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.detail-amount {
+  min-height: 42px;
+  border-top: 1px solid #edf1ef;
+}
+
+.detail-amount.strong strong {
+  color: #176b4d;
+  font-size: 18px;
+}
+
+.journal-detail {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #dfe8e3;
+  border-radius: 8px;
+  padding: 12px;
+  background: #fbfdfc;
+}
+
+.journal-detail-head {
+  align-items: flex-start;
+}
+
+.journal-detail-head > div {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.journal-detail-head strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journal-detail-head span:not(.balance-pill) {
+  color: #62706a;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.journal-detail-lines {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(86px, auto) minmax(86px, auto);
+  gap: 8px 10px;
+  align-items: center;
+}
+
+.journal-detail-lines > span {
+  color: #6d7973;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.journal-detail-lines strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.journal-detail-lines b {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.receipt-drawer-actions {
+  position: sticky;
+  bottom: -22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: grid;
+  border-top: 1px solid #edf1ef;
+  padding-top: 14px;
+  background: #fff;
 }
 
 .journal-preview {
@@ -2338,6 +2541,11 @@ select:focus {
   color: var(--muted);
 }
 
+:root[data-theme="dark"] .ledger-row.selected {
+  background: var(--surface-soft);
+  box-shadow: inset 3px 0 0 var(--accent);
+}
+
 :root[data-theme="dark"] .ledger-summary span {
   border-color: var(--border);
   background: var(--surface-muted);
@@ -2352,6 +2560,49 @@ select:focus {
 :root[data-theme="dark"] .amount-stack span,
 :root[data-theme="dark"] .journal-preview span {
   color: var(--muted);
+}
+
+:root[data-theme="dark"] .receipt-drawer {
+  border-color: var(--border);
+  background: var(--surface);
+  box-shadow: -18px 0 54px rgba(0, 0, 0, 0.34);
+}
+
+:root[data-theme="dark"] .receipt-drawer-status,
+:root[data-theme="dark"] .detail-field,
+:root[data-theme="dark"] .journal-detail {
+  border-color: var(--border);
+  background: var(--surface-muted);
+}
+
+:root[data-theme="dark"] .receipt-drawer-header span,
+:root[data-theme="dark"] .receipt-drawer-header p,
+:root[data-theme="dark"] .drawer-section-heading span,
+:root[data-theme="dark"] .detail-field span,
+:root[data-theme="dark"] .detail-amount span,
+:root[data-theme="dark"] .journal-detail-head span:not(.balance-pill),
+:root[data-theme="dark"] .journal-detail-lines > span {
+  color: var(--muted);
+}
+
+:root[data-theme="dark"] .detail-field strong,
+:root[data-theme="dark"] .journal-detail-head strong,
+:root[data-theme="dark"] .journal-detail-lines strong,
+:root[data-theme="dark"] .journal-detail-lines b {
+  color: var(--text);
+}
+
+:root[data-theme="dark"] .detail-amount,
+:root[data-theme="dark"] .receipt-drawer-actions {
+  border-color: var(--border);
+}
+
+:root[data-theme="dark"] .detail-amount.strong strong {
+  color: var(--accent);
+}
+
+:root[data-theme="dark"] .receipt-drawer-actions {
+  background: var(--surface);
 }
 
 :root[data-theme="dark"] .journal-lines {
@@ -2718,5 +2969,25 @@ select:focus {
 
   .ledger-row .status {
     justify-content: flex-start;
+  }
+
+  .receipt-drawer {
+    width: 100%;
+    padding: 18px;
+  }
+
+  .receipt-drawer-status,
+  .journal-detail-head {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .detail-grid,
+  .receipt-drawer-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .journal-detail-lines {
+    grid-template-columns: minmax(120px, 1fr) minmax(68px, auto) minmax(68px, auto);
   }
 }
