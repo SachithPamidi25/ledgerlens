@@ -45,6 +45,14 @@ public class ReceiptController {
         return ResponseEntity.accepted().build();
     }
 
+    @PostMapping("/{id}/retry")
+    public ResponseEntity<?> retryProcessing(
+            @AuthenticationPrincipal UserPrincipal principal,
+            @PathVariable UUID id) {
+        receiptService.retryProcessing(id, principal.userId());
+        return ResponseEntity.accepted().build();
+    }
+
     @GetMapping
     public ResponseEntity<?> getReceipts(
             @AuthenticationPrincipal UserPrincipal principal,

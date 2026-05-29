@@ -164,6 +164,10 @@ export function correctReceipt(id: string, correction: ReceiptCorrectionRequest)
   });
 }
 
+export function retryReceiptProcessing(id: string) {
+  return request<void>(`/api/receipts/${id}/retry`, { method: "POST" });
+}
+
 export function getMonthlySummary(year?: number, month?: number) {
   const query = year && month ? `?year=${year}&month=${month}` : "";
   return request<MonthlySummary>(`/api/expenses/summary${query}`);

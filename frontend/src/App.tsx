@@ -47,6 +47,7 @@ import {
   login,
   logout,
   register,
+  retryReceiptProcessing,
   uploadReceipt
 } from "./api";
 import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, SummaryItem } from "./types";
@@ -400,6 +401,7 @@ function Dashboard({
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
   const [activeReceiptIds, setActiveReceiptIds] = useState<string[]>([]);
   const [deletingReceiptId, setDeletingReceiptId] = useState<string | null>(null);
+  const [retryingReceiptId, setRetryingReceiptId] = useState<string | null>(null);
   const [editingReceipt, setEditingReceipt] = useState<Receipt | null>(null);
   const [selectedReceipt, setSelectedReceipt] = useState<Receipt | null>(null);
   const [correctingReceiptId, setCorrectingReceiptId] = useState<string | null>(null);
@@ -597,6 +599,20 @@ function Dashboard({
     }
   }
 
+  async function handleRetryReceipt(receipt: Receipt) {
+    setRetryingReceiptId(receipt.id);
+    setError("");
+    try {
+      await retryReceiptProcessing(receipt.id);
+      setActiveReceiptIds((current) => Array.from(new Set([...current, receipt.id])));
+      await loadData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Retry failed");
+    } finally {
+      setRetryingReceiptId(null);
+    }
+  }
+
   async function handleDeleteLedger() {
     const confirmation = window.prompt(
       "This will permanently delete every receipt in this ledger and remove stored receipt files. Type DELETE LEDGER to continue."
@@ -726,6 +742,7 @@ function Dashboard({
             loading={loading}
             totals={totals}
             deletingReceiptId={deletingReceiptId}
+            retryingReceiptId={retryingReceiptId}
             editingReceipt={editingReceipt}
             correctingReceiptId={correctingReceiptId}
             selectedReceipt={selectedReceipt}
@@ -733,6 +750,7 @@ function Dashboard({
             onViewReceipt={setSelectedReceipt}
             onCancelEdit={() => setEditingReceipt(null)}
             onCorrectReceipt={handleCorrectReceipt}
+            onRetryReceipt={handleRetryReceipt}
             onDeleteReceipt={handleDeleteReceipt}
           />
         )}
@@ -759,12 +777,14 @@ function Dashboard({
           <ReceiptDetailDrawer
             receipt={selectedReceipt}
             deleting={deletingReceiptId === selectedReceipt.id}
+            retrying={retryingReceiptId === selectedReceipt.id}
             onClose={() => setSelectedReceipt(null)}
             onEdit={(receipt) => {
               setEditingReceipt(receipt);
               setSelectedReceipt(null);
               setPage("receipts");
             }}
+            onRetry={handleRetryReceipt}
             onDelete={handleDeleteReceipt}
           />
         )}
@@ -1026,6 +1046,7 @@ function ReceiptsPage({
   loading,
   totals,
   deletingReceiptId,
+  retryingReceiptId,
   editingReceipt,
   correctingReceiptId,
   selectedReceipt,
@@ -1033,6 +1054,7 @@ function ReceiptsPage({
   onViewReceipt,
   onCancelEdit,
   onCorrectReceipt,
+  onRetryReceipt,
   onDeleteReceipt
 }: {
   receiptPage: Page<Receipt> | null;
@@ -1040,6 +1062,7 @@ function ReceiptsPage({
   loading: boolean;
   totals: Totals;
   deletingReceiptId: string | null;
+  retryingReceiptId: string | null;
   editingReceipt: Receipt | null;
   correctingReceiptId: string | null;
   selectedReceipt: Receipt | null;
@@ -1047,6 +1070,7 @@ function ReceiptsPage({
   onViewReceipt: (receipt: Receipt) => void;
   onCancelEdit: () => void;
   onCorrectReceipt: (receiptId: string, correction: ReceiptCorrectionRequest) => void;
+  onRetryReceipt: (receipt: Receipt) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
   const monthOptions = useMemo(() => buildReceiptMonthOptions(receipts), [receipts]);
@@ -1152,9 +1176,11 @@ function ReceiptsPage({
           receipts={visibleReceipts}
           loading={loading}
           deletingReceiptId={deletingReceiptId}
+          retryingReceiptId={retryingReceiptId}
           selectedReceiptId={selectedReceipt?.id ?? null}
           onViewReceipt={onViewReceipt}
           onEditReceipt={onEditReceipt}
+          onRetryReceipt={onRetryReceipt}
           onDeleteReceipt={onDeleteReceipt}
         />
       </section>
@@ -1651,6 +1677,10 @@ function isTerminalReceiptStatus(status: ReceiptStatus) {
   return status === "COMPLETED" || status === "NEEDS_REVIEW" || status === "FAILED" || status === "DUPLICATE" || status === "PERMANENTLY_FAILED";
 }
 
+function isRetryableReceiptStatus(status: ReceiptStatus) {
+  return status === "FAILED" || status === "PERMANENTLY_FAILED";
+}
+
 function parseStatusEvent(event: Event): ReceiptStatus | null {
   if (!(event instanceof MessageEvent)) return null;
   try {
@@ -1689,17 +1719,21 @@ function MonthlyLedger({
   receipts,
   loading,
   deletingReceiptId,
+  retryingReceiptId,
   selectedReceiptId,
   onViewReceipt,
   onEditReceipt,
+  onRetryReceipt,
   onDeleteReceipt
 }: {
   receipts: Receipt[];
   loading: boolean;
   deletingReceiptId: string | null;
+  retryingReceiptId: string | null;
   selectedReceiptId: string | null;
   onViewReceipt: (receipt: Receipt) => void;
   onEditReceipt: (receipt: Receipt) => void;
+  onRetryReceipt: (receipt: Receipt) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
   const groups = useMemo(() => groupReceiptsByDate(receipts), [receipts]);
@@ -1723,9 +1757,11 @@ function MonthlyLedger({
           receipts={group.receipts}
           loading={loading}
           deletingReceiptId={deletingReceiptId}
+          retryingReceiptId={retryingReceiptId}
           selectedReceiptId={selectedReceiptId}
           onViewReceipt={onViewReceipt}
           onEditReceipt={onEditReceipt}
+          onRetryReceipt={onRetryReceipt}
           onDeleteReceipt={onDeleteReceipt}
         />
         </section>
@@ -1738,17 +1774,21 @@ function LedgerTable({
   receipts,
   loading,
   deletingReceiptId,
+  retryingReceiptId,
   selectedReceiptId,
   onViewReceipt,
   onEditReceipt,
+  onRetryReceipt,
   onDeleteReceipt
 }: {
   receipts: Receipt[];
   loading: boolean;
   deletingReceiptId: string | null;
+  retryingReceiptId: string | null;
   selectedReceiptId: string | null;
   onViewReceipt: (receipt: Receipt) => void;
   onEditReceipt: (receipt: Receipt) => void;
+  onRetryReceipt: (receipt: Receipt) => void;
   onDeleteReceipt: (receipt: Receipt) => void;
 }) {
   const rows = useMemo(() => {
@@ -1812,6 +1852,17 @@ function LedgerTable({
               <span>Edit</span>
             </button>
             <button
+              className="row-action-button"
+              type="button"
+              onClick={() => onRetryReceipt(receipt)}
+              disabled={!isRetryableReceiptStatus(receipt.status) || retryingReceiptId === receipt.id}
+              aria-label={`Retry ${receipt.vendor || receipt.originalFilename}`}
+              title={isRetryableReceiptStatus(receipt.status) ? "Retry receipt processing" : "Only failed receipts can be retried"}
+            >
+              {retryingReceiptId === receipt.id ? <Loader2 size={16} /> : <RotateCcw size={16} />}
+              <span>Retry</span>
+            </button>
+            <button
               className="icon-button danger-icon"
               type="button"
               onClick={() => onDeleteReceipt(receipt)}
@@ -1831,14 +1882,18 @@ function LedgerTable({
 function ReceiptDetailDrawer({
   receipt,
   deleting,
+  retrying,
   onClose,
   onEdit,
+  onRetry,
   onDelete
 }: {
   receipt: Receipt;
   deleting: boolean;
+  retrying: boolean;
   onClose: () => void;
   onEdit: (receipt: Receipt) => void;
+  onRetry: (receipt: Receipt) => void;
   onDelete: (receipt: Receipt) => void;
 }) {
   const journalEntries = receipt.journalEntries?.length
@@ -1925,6 +1980,15 @@ function ReceiptDetailDrawer({
           <button className="danger-action" type="button" onClick={() => onDelete(receipt)} disabled={deleting}>
             {deleting ? <Loader2 size={17} /> : <Trash2 size={17} />}
             {deleting ? "Deleting..." : "Delete receipt"}
+          </button>
+          <button
+            className="secondary-action"
+            type="button"
+            onClick={() => onRetry(receipt)}
+            disabled={!isRetryableReceiptStatus(receipt.status) || retrying}
+          >
+            {retrying ? <Loader2 size={17} /> : <RotateCcw size={17} />}
+            {retrying ? "Retrying..." : "Retry processing"}
           </button>
         </footer>
       </aside>

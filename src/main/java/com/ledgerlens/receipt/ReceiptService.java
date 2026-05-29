@@ -38,6 +38,8 @@ import java.util.stream.Collectors;
 public class ReceiptService {
     private static final Set<String> SUPPORTED_RECEIPT_EXTENSIONS =
             Set.of("png", "jpg", "jpeg", "webp", "gif");
+    private static final Set<ReceiptStatus> RETRYABLE_PROCESSING_STATUSES =
+            Set.of(ReceiptStatus.FAILED, ReceiptStatus.PERMANENTLY_FAILED);
     private static final DateTimeFormatter MONTH_KEY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM");
 
     private final ReceiptRepository receiptRepository;
@@ -135,8 +137,28 @@ public class ReceiptService {
                     "Receipt is not in PENDING state, current status: " + receipt.getStatus());
         }
 
+        enqueueProcessing(receipt, userId, "Processing enqueued via outbox");
+    }
+
+    @Transactional
+    public void retryProcessing(UUID receiptId, UUID userId) {
+        Receipt receipt = receiptRepository.findByIdAndUserId(receiptId, userId)
+                .orElseThrow(() -> new jakarta.persistence.EntityNotFoundException(
+                        "Receipt not found: " + receiptId));
+
+        if (!RETRYABLE_PROCESSING_STATUSES.contains(receipt.getStatus())) {
+            throw new IllegalStateException(
+                    "Receipt is not retryable, current status: " + receipt.getStatus());
+        }
+
+        receipt.setStatus(ReceiptStatus.PENDING);
+        enqueueProcessing(receipt, userId, "Receipt processing retry enqueued via outbox");
+    }
+
+    private void enqueueProcessing(Receipt receipt, UUID userId, String logMessage) {
         storageService.assertObjectExists(receipt.getStorageKey());
 
+        UUID receiptId = receipt.getId();
         String traceId = MDC.get("traceId") != null ? MDC.get("traceId") : UUID.randomUUID().toString();
         ReceiptProcessingMessage message =
                 new ReceiptProcessingMessage(receiptId, receipt.getStorageKey(), userId, traceId);
@@ -151,7 +173,7 @@ public class ReceiptService {
             throw new RuntimeException("Failed to enqueue receipt for processing", e);
         }
 
-        log.info("Processing enqueued via outbox: receiptId={} userId={}", receiptId, userId);
+        log.info("{}: receiptId={} userId={}", logMessage, receiptId, userId);
     }
 
     @Transactional

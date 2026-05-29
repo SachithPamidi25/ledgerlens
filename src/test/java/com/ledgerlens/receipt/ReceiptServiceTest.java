@@ -6,6 +6,7 @@ import com.ledgerlens.ledger.JournalEntry;
 import com.ledgerlens.ledger.JournalEntryRepository;
 import com.ledgerlens.ledger.JournalEntryType;
 import com.ledgerlens.ledger.LedgerPostingService;
+import com.ledgerlens.outbox.OutboxEvent;
 import com.ledgerlens.outbox.OutboxEventRepository;
 import com.ledgerlens.user.User;
 import com.ledgerlens.user.UserRepository;
@@ -25,6 +26,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -102,6 +104,56 @@ class ReceiptServiceTest {
     }
 
     @Test
+    void retryProcessing_failedReceipt_resetsStatusAndEnqueuesOutboxEvent() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        Receipt receipt = retryableReceipt(receiptId, userId, ReceiptStatus.FAILED);
+
+        when(receiptRepository.findByIdAndUserId(receiptId, userId)).thenReturn(Optional.of(receipt));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        receiptService.retryProcessing(receiptId, userId);
+
+        assertThat(receipt.getStatus()).isEqualTo(ReceiptStatus.PENDING);
+        verify(storageService).assertObjectExists(receipt.getStorageKey());
+        verify(outboxEventRepository).save(argThat(event ->
+                event instanceof OutboxEvent
+                        && receiptId.equals(event.getAggregateId())
+                        && "RECEIPT_PROCESSING_REQUESTED".equals(event.getEventType())
+        ));
+    }
+
+    @Test
+    void retryProcessing_permanentlyFailedReceipt_isRetryable() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        Receipt receipt = retryableReceipt(receiptId, userId, ReceiptStatus.PERMANENTLY_FAILED);
+
+        when(receiptRepository.findByIdAndUserId(receiptId, userId)).thenReturn(Optional.of(receipt));
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+
+        receiptService.retryProcessing(receiptId, userId);
+
+        assertThat(receipt.getStatus()).isEqualTo(ReceiptStatus.PENDING);
+        verify(outboxEventRepository).save(any(OutboxEvent.class));
+    }
+
+    @Test
+    void retryProcessing_completedReceipt_isRejected() {
+        UUID userId = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        Receipt receipt = retryableReceipt(receiptId, userId, ReceiptStatus.COMPLETED);
+
+        when(receiptRepository.findByIdAndUserId(receiptId, userId)).thenReturn(Optional.of(receipt));
+
+        assertThatThrownBy(() -> receiptService.retryProcessing(receiptId, userId))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not retryable");
+
+        verifyNoInteractions(storageService, outboxEventRepository);
+    }
+
+    @Test
     void correctReceipt_reversesOriginalEntryAndPostsCorrection() {
         UUID userId = UUID.randomUUID();
         UUID receiptId = UUID.randomUUID();
@@ -174,6 +226,19 @@ class ReceiptServiceTest {
     private Receipt completedReceiptOn(LocalDate date, String total) {
         Receipt receipt = receiptWithStatus(ReceiptStatus.COMPLETED, total);
         receipt.setReceiptDate(date);
+        return receipt;
+    }
+
+    private Receipt retryableReceipt(UUID receiptId, UUID userId, ReceiptStatus status) {
+        User user = new User();
+        user.setId(userId);
+
+        Receipt receipt = new Receipt();
+        receipt.setId(receiptId);
+        receipt.setUser(user);
+        receipt.setOriginalFilename("receipt.jpg");
+        receipt.setStorageKey("receipts/" + userId + "/receipt.jpg");
+        receipt.setStatus(status);
         return receipt;
     }
 }
