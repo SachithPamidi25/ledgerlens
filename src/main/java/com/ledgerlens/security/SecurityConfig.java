@@ -45,6 +45,7 @@ public class SecurityConfig {
                         .dispatcherTypeMatchers(DispatcherType.ASYNC, DispatcherType.ERROR).permitAll()
                         .requestMatchers("/error").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/prometheus").permitAll()
+                        .requestMatchers("/api/system/status").permitAll()
                         .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/refresh").permitAll()
                         .anyRequest().authenticated()
                 )
