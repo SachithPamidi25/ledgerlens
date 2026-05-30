@@ -43,6 +43,7 @@ import {
   getAccessToken,
   getInsights,
   getMonthlySummary,
+  getReceiptStatusSummary,
   getReceipts,
   login,
   logout,
@@ -50,7 +51,7 @@ import {
   retryReceiptProcessing,
   uploadReceipt
 } from "./api";
-import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, SummaryItem } from "./types";
+import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, ReceiptStatusSummary, SummaryItem } from "./types";
 
 type AuthMode = "login" | "register";
 type AppPage = "overview" | "upload" | "expenses" | "receipts" | "insights" | "settings";
@@ -395,6 +396,7 @@ function Dashboard({
   const [page, setPage] = useState<AppPage>(() => preferences.defaultPage);
   const [receipts, setReceipts] = useState<Page<Receipt> | null>(null);
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
+  const [statusSummary, setStatusSummary] = useState<ReceiptStatusSummary | null>(null);
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -413,7 +415,7 @@ function Dashboard({
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
-    const results = await Promise.allSettled([getReceipts(), getMonthlySummary(), getInsights(3)]);
+    const results = await Promise.allSettled([getReceipts(), getMonthlySummary(), getInsights(3), getReceiptStatusSummary()]);
     const messages: string[] = [];
 
     results.forEach((result, index) => {
@@ -421,6 +423,7 @@ function Dashboard({
         if (index === 0) setReceipts(result.value as Page<Receipt>);
         if (index === 1) setSummary(result.value as MonthlySummary);
         if (index === 2) setInsights(result.value as InsightsResponse);
+        if (index === 3) setStatusSummary(result.value as ReceiptStatusSummary);
         return;
       }
 
@@ -779,6 +782,7 @@ function Dashboard({
           <SettingsPage
             theme={theme}
             totals={totals}
+            statusSummary={statusSummary}
             displayCurrency={displayCurrency}
             preferences={preferences}
             deletingLedger={deletingLedger}
@@ -1319,6 +1323,7 @@ function InsightsPage({
 function SettingsPage({
   theme,
   totals,
+  statusSummary,
   displayCurrency,
   preferences,
   deletingLedger,
@@ -1332,6 +1337,7 @@ function SettingsPage({
 }: {
   theme: Theme;
   totals: Totals;
+  statusSummary: ReceiptStatusSummary | null;
   displayCurrency: CurrencyCode;
   preferences: WorkspacePreferences;
   deletingLedger: boolean;
@@ -1494,6 +1500,22 @@ function SettingsPage({
         onBudgetChange={(value) => onPreferenceChange("monthlyBudget", value)}
         onWarningPercentChange={(value) => onPreferenceChange("budgetWarningPercent", value)}
       />
+
+      <div className="panel span-2">
+        <div className="panel-heading">
+          <div>
+            <h2>Operations Summary</h2>
+            <p>Processing health from the latest authenticated API snapshot.</p>
+          </div>
+          <BarChart3 size={22} />
+        </div>
+        <section className="status-grid">
+          <MiniStat label="Processing" value={String(statusSummary?.processing ?? totals.processing)} />
+          <MiniStat label="Needs review" value={String(statusSummary?.needsReview ?? 0)} tone={(statusSummary?.needsReview ?? 0) > 0 ? "danger" : undefined} />
+          <MiniStat label="Duplicates" value={String(statusSummary?.duplicate ?? totals.duplicate)} />
+          <MiniStat label="Failed" value={String(statusSummary?.failed ?? totals.failed)} tone={(statusSummary?.failed ?? totals.failed) > 0 ? "danger" : undefined} />
+        </section>
+      </div>
 
       <div className="panel">
         <div className="panel-heading">
