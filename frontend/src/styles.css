@@ -775,6 +775,42 @@ select:focus {
   font-weight: 900;
 }
 
+.status-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.status-filter-bar button {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid #dbe6df;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #f9fcfa;
+  color: #52645b;
+  font-weight: 900;
+}
+
+.status-filter-bar button.active {
+  border-color: #176b4d;
+  background: #e9f6ef;
+  color: #0f5138;
+}
+
+.status-filter-bar strong {
+  min-width: 24px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  background: #e3ece7;
+  color: #176b4d;
+  font-size: 12px;
+  text-align: center;
+}
+
 .expenses-page {
   gap: 16px;
 }

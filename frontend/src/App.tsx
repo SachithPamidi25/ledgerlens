@@ -56,6 +56,7 @@ type AuthMode = "login" | "register";
 type AppPage = "overview" | "upload" | "expenses" | "receipts" | "insights" | "settings";
 type Theme = "light" | "dark";
 type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "AUD" | "CAD" | "SGD" | "LKR";
+type ReceiptStatusFilter = "ALL" | ReceiptStatus;
 
 type WorkspacePreferences = {
   openLedgerAfterUpload: boolean;
@@ -1075,6 +1076,7 @@ function ReceiptsPage({
 }) {
   const monthOptions = useMemo(() => buildReceiptMonthOptions(receipts), [receipts]);
   const [selectedMonth, setSelectedMonth] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<ReceiptStatusFilter>("ALL");
   const [query, setQuery] = useState("");
   const loadedCount = receipts.length;
   const totalCount = receiptPage?.totalElements ?? totals.count;
@@ -1085,7 +1087,12 @@ function ReceiptsPage({
     () => selectedMonth === "all" ? receipts : receipts.filter((receipt) => receiptMonthKey(receipt) === selectedMonth),
     [receipts, selectedMonth]
   );
-  const visibleReceipts = useMemo(() => filterReceipts(monthlyReceipts, query), [monthlyReceipts, query]);
+  const searchedReceipts = useMemo(() => filterReceipts(monthlyReceipts, query), [monthlyReceipts, query]);
+  const visibleReceipts = useMemo(
+    () => filterReceiptsByStatus(searchedReceipts, statusFilter),
+    [searchedReceipts, statusFilter]
+  );
+  const statusOptions = useMemo(() => buildStatusFilterOptions(searchedReceipts), [searchedReceipts]);
   const selectedMonthLabel = selectedMonth === "all" ? "All months" : formatMonthLabel(selectedMonth);
   const monthlyStats = useMemo(() => summarizeReceipts(visibleReceipts, totals.currency), [visibleReceipts, totals.currency]);
 
@@ -1134,6 +1141,19 @@ function ReceiptsPage({
             <Download size={16} />
             Export CSV
           </button>
+        </div>
+        <div className="status-filter-bar" aria-label="Filter receipts by status">
+          {statusOptions.map((option) => (
+            <button
+              type="button"
+              key={option.status}
+              className={statusFilter === option.status ? "active" : ""}
+              onClick={() => setStatusFilter(option.status)}
+            >
+              <span>{option.label}</span>
+              <strong>{option.count}</strong>
+            </button>
+          ))}
         </div>
       </section>
 
@@ -2544,6 +2564,33 @@ function filterReceipts(receipts: Receipt[], query: string) {
 
     return haystack.includes(term);
   });
+}
+
+function filterReceiptsByStatus(receipts: Receipt[], status: ReceiptStatusFilter) {
+  if (status === "ALL") return receipts;
+  return receipts.filter((receipt) => receipt.status === status);
+}
+
+function buildStatusFilterOptions(receipts: Receipt[]) {
+  const options: Array<{ status: ReceiptStatusFilter; label: string; count: number }> = [
+    { status: "ALL", label: "All", count: receipts.length },
+    { status: "PROCESSING", label: "Processing", count: 0 },
+    { status: "COMPLETED", label: "Completed", count: 0 },
+    { status: "NEEDS_REVIEW", label: "Needs review", count: 0 },
+    { status: "FAILED", label: "Failed", count: 0 },
+    { status: "DUPLICATE", label: "Duplicate", count: 0 },
+    { status: "PERMANENTLY_FAILED", label: "Permanent", count: 0 }
+  ];
+  const byStatus = new Map<ReceiptStatusFilter, number>();
+  receipts.forEach((receipt) => {
+    byStatus.set(receipt.status, (byStatus.get(receipt.status) ?? 0) + 1);
+  });
+
+  return options.map((option) =>
+    option.status === "ALL"
+      ? option
+      : { ...option, count: byStatus.get(option.status) ?? 0 }
+  );
 }
 
 function exportReceiptsCsv(receipts: Receipt[]) {
