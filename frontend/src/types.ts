@@ -25,6 +25,7 @@ export type Receipt = {
   tip?: number | null;
   total?: number | null;
   currency?: string | null;
+  failureReason?: string | null;
   journalEntry?: JournalEntry | null;
   journalEntries?: JournalEntry[];
   createdAt: string;

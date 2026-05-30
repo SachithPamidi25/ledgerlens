@@ -1978,6 +1978,7 @@ function ReceiptDetailDrawer({
           <DetailField label="Category" value={receipt.merchantCategory ? titleCase(receipt.merchantCategory) : "Uncategorized"} />
           <DetailField label="Created" value={formatDateTime(receipt.createdAt)} />
           <DetailField label="Updated" value={formatDateTime(receipt.updatedAt)} />
+          {receipt.failureReason && <DetailField label="Failure reason" value={receipt.failureReason} wide />}
           <DetailField label="Storage key" value={receipt.storageKey} wide />
           <DetailField label="Receipt ID" value={receipt.id} wide />
         </section>

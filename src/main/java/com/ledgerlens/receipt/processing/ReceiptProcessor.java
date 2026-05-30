@@ -32,15 +32,15 @@ public class ReceiptProcessor {
                 receiptProcessingService.markDuplicate(message.receiptId(), null);
             } else {
                 log.error("Unexpected constraint violation", e);
-                receiptProcessingService.markFailed(message.receiptId());
+                receiptProcessingService.markFailed(message.receiptId(), failureReason(e));
                 throw new AmqpRejectAndDontRequeueException("Constraint violation during receipt processing", e);
             }
         } catch (ClaudeNonRetryableException e) {
             log.warn("Receipt processing failed permanently: {}", e.getMessage());
-            receiptProcessingService.markPermanentlyFailed(message.receiptId());
+            receiptProcessingService.markPermanentlyFailed(message.receiptId(), failureReason(e));
         } catch (Exception e) {
             log.error("Failed to process receipt", e);
-            receiptProcessingService.markFailed(message.receiptId());
+            receiptProcessingService.markFailed(message.receiptId(), failureReason(e));
             throw new AmqpRejectAndDontRequeueException("Receipt processing failed, routing to DLQ", e);
         } finally {
             MDC.clear();
@@ -50,5 +50,13 @@ public class ReceiptProcessor {
     private boolean isContentHashConstraint(DataIntegrityViolationException e) {
         String msg = e.getMostSpecificCause().getMessage();
         return msg != null && msg.contains("uq_receipts_content_hash_user");
+    }
+
+    private String failureReason(Exception e) {
+        String message = e.getMessage();
+        if (message == null || message.isBlank()) {
+            message = e.getClass().getSimpleName();
+        }
+        return message.length() > 1000 ? message.substring(0, 1000) : message;
     }
 }

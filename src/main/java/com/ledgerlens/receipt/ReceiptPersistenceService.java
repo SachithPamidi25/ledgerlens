@@ -48,6 +48,7 @@ public class ReceiptPersistenceService {
 
         applyExtraction(receipt, contentHash, result);
         receipt.setStatus(ReceiptStatus.COMPLETED);
+        receipt.setFailureReason(null);
         ledgerPostingService.postReceiptExpense(receipt);
         receiptSemanticIndexService.indexReceipt(receipt);
         publishStatusAfterCommit(receiptId, ReceiptStatus.COMPLETED);
@@ -65,6 +66,7 @@ public class ReceiptPersistenceService {
 
         applyExtraction(receipt, contentHash, result);
         receipt.setStatus(ReceiptStatus.NEEDS_REVIEW);
+        receipt.setFailureReason(summarizeValidationErrors(validationErrors));
 
         try {
             Map<String, Object> reviewPayload = new LinkedHashMap<>();
@@ -106,15 +108,31 @@ public class ReceiptPersistenceService {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markFailed(UUID receiptId) {
-        receiptRepository.findById(receiptId).ifPresent(r -> r.setStatus(ReceiptStatus.FAILED));
+        markFailed(receiptId, "Receipt processing failed");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markFailed(UUID receiptId, String reason) {
+        receiptRepository.findById(receiptId).ifPresent(r -> {
+            r.setStatus(ReceiptStatus.FAILED);
+            r.setFailureReason(truncateReason(reason));
+        });
         publishStatusAfterCommit(receiptId, ReceiptStatus.FAILED);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void markPermanentlyFailed(UUID receiptId) {
-        receiptRepository.findById(receiptId).ifPresent(r -> r.setStatus(ReceiptStatus.PERMANENTLY_FAILED));
+        markPermanentlyFailed(receiptId, "DLQ retries exhausted");
+    }
+
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    public void markPermanentlyFailed(UUID receiptId, String reason) {
+        receiptRepository.findById(receiptId).ifPresent(r -> {
+            r.setStatus(ReceiptStatus.PERMANENTLY_FAILED);
+            r.setFailureReason(truncateReason(reason));
+        });
         publishStatusAfterCommit(receiptId, ReceiptStatus.PERMANENTLY_FAILED);
-        log.error("ALERT: Receipt {} has been permanently failed after DLQ retries exhausted", receiptId);
+        log.error("ALERT: Receipt {} has been permanently failed: {}", receiptId, reason);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -124,8 +142,26 @@ public class ReceiptPersistenceService {
             if (contentHash != null) {
                 r.setContentHash(contentHash);
             }
+            r.setFailureReason("Duplicate receipt content detected");
         });
         publishStatusAfterCommit(receiptId, ReceiptStatus.DUPLICATE);
+    }
+
+    private String summarizeValidationErrors(List<ReceiptExtractionValidationError> validationErrors) {
+        if (validationErrors == null || validationErrors.isEmpty()) {
+            return "AI extraction requires manual review";
+        }
+        return truncateReason(validationErrors.stream()
+                .map(error -> error.field() + ": " + error.message())
+                .limit(5)
+                .collect(java.util.stream.Collectors.joining("; ")));
+    }
+
+    private String truncateReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "Receipt processing failed";
+        }
+        return reason.length() > 1000 ? reason.substring(0, 1000) : reason;
     }
 
     /**

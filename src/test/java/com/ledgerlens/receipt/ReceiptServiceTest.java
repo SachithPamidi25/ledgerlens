@@ -115,6 +115,7 @@ class ReceiptServiceTest {
         receiptService.retryProcessing(receiptId, userId);
 
         assertThat(receipt.getStatus()).isEqualTo(ReceiptStatus.PENDING);
+        assertThat(receipt.getFailureReason()).isNull();
         verify(storageService).assertObjectExists(receipt.getStorageKey());
         verify(outboxEventRepository).save(argThat(event ->
                 event instanceof OutboxEvent
@@ -239,6 +240,7 @@ class ReceiptServiceTest {
         receipt.setOriginalFilename("receipt.jpg");
         receipt.setStorageKey("receipts/" + userId + "/receipt.jpg");
         receipt.setStatus(status);
+        receipt.setFailureReason("AI provider timeout");
         return receipt;
     }
 }

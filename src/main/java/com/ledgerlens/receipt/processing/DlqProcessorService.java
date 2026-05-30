@@ -66,7 +66,10 @@ public class DlqProcessorService {
         if (retryCount >= maxRetries) {
             log.error("DLQ: max retries ({}) exhausted for receiptId={} — marking PERMANENTLY_FAILED",
                     maxRetries, receiptId);
-            receiptProcessingService.markPermanentlyFailed(receiptId);
+            receiptProcessingService.markPermanentlyFailed(
+                    receiptId,
+                    "DLQ retries exhausted after " + maxRetries + " attempts"
+            );
             return;
         }
 

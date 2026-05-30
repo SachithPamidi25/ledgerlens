@@ -146,12 +146,20 @@ public class ReceiptProcessingService {
         persistenceService.markFailed(receiptId);
     }
 
+    public void markFailed(UUID receiptId, String reason) {
+        persistenceService.markFailed(receiptId, reason);
+    }
+
     public void markDuplicate(UUID receiptId, String contentHash) {
         persistenceService.markDuplicate(receiptId, contentHash);
     }
 
     public void markPermanentlyFailed(UUID receiptId) {
         persistenceService.markPermanentlyFailed(receiptId);
+    }
+
+    public void markPermanentlyFailed(UUID receiptId, String reason) {
+        persistenceService.markPermanentlyFailed(receiptId, reason);
     }
 
     private long elapsedMs(long startNanos) {

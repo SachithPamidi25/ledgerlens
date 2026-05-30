@@ -152,6 +152,7 @@ public class ReceiptService {
         }
 
         receipt.setStatus(ReceiptStatus.PENDING);
+        receipt.setFailureReason(null);
         enqueueProcessing(receipt, userId, "Receipt processing retry enqueued via outbox");
     }
 

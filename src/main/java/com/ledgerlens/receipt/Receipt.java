@@ -64,6 +64,9 @@ public class Receipt {
     @Column
     private String currency = "INR";
 
+    @Column(name = "failure_reason", length = 1000)
+    private String failureReason;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "raw_extraction", columnDefinition = "jsonb")
     private String rawExtraction;
