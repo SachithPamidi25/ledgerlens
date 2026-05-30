@@ -447,6 +447,12 @@ select:focus {
   margin: 0;
 }
 
+.notice.success {
+  border-color: #b9dfca;
+  background: #edf8f1;
+  color: #176b4d;
+}
+
 .workspace-shell {
   min-height: 100vh;
   display: grid;

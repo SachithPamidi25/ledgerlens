@@ -397,6 +397,7 @@ function Dashboard({
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
   const [insights, setInsights] = useState<InsightsResponse | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
@@ -541,6 +542,7 @@ function Dashboard({
     setUploading(true);
     setUploadProgress({ current: 0, total: selected.length });
     setError("");
+    setNotice("");
     const failures: string[] = [];
     try {
       for (const [index, file] of selected.entries()) {
@@ -558,6 +560,9 @@ function Dashboard({
         setPage("receipts");
       }
       setError(failures.length ? failures.join(". ") : "");
+      if (!failures.length) {
+        setNotice(`${selected.length} receipt${selected.length === 1 ? "" : "s"} queued for processing.`);
+      }
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -575,6 +580,7 @@ function Dashboard({
 
     setDeletingReceiptId(receipt.id);
     setError("");
+    setNotice("");
     try {
       await deleteReceipt(receipt.id);
       setSelectedReceipt((current) => (current?.id === receipt.id ? null : current));
@@ -589,6 +595,7 @@ function Dashboard({
   async function handleCorrectReceipt(receiptId: string, correction: ReceiptCorrectionRequest) {
     setCorrectingReceiptId(receiptId);
     setError("");
+    setNotice("");
     try {
       await correctReceipt(receiptId, correction);
       setEditingReceipt(null);
@@ -603,10 +610,12 @@ function Dashboard({
   async function handleRetryReceipt(receipt: Receipt) {
     setRetryingReceiptId(receipt.id);
     setError("");
+    setNotice("");
     try {
       await retryReceiptProcessing(receipt.id);
       setActiveReceiptIds((current) => Array.from(new Set([...current, receipt.id])));
       await loadData();
+      setNotice(`Retry queued for ${receipt.vendor || receipt.originalFilename}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Retry failed");
     } finally {
@@ -622,6 +631,7 @@ function Dashboard({
 
     setDeletingLedger(true);
     setError("");
+    setNotice("");
     try {
       await deleteLedger();
       await loadData();
@@ -707,6 +717,13 @@ function Dashboard({
           <div className="notice">
             <AlertTriangle size={18} />
             <span>{error}</span>
+          </div>
+        )}
+
+        {notice && (
+          <div className="notice success">
+            <CheckCircle2 size={18} />
+            <span>{notice}</span>
           </div>
         )}
 
