@@ -1504,9 +1504,19 @@ select:focus {
 }
 
 .receipt-cell span,
+.receipt-cell small,
 .amount-stack span {
   color: #62706a;
   font-size: 13px;
+}
+
+.receipt-cell small {
+  max-width: 100%;
+  color: #9b3326;
+  font-weight: 800;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .amount-stack {

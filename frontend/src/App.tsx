@@ -57,7 +57,7 @@ type AuthMode = "login" | "register";
 type AppPage = "overview" | "upload" | "expenses" | "receipts" | "insights" | "settings";
 type Theme = "light" | "dark";
 type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "AUD" | "CAD" | "SGD" | "LKR";
-type ReceiptStatusFilter = "ALL" | ReceiptStatus;
+type ReceiptStatusFilter = "ALL" | "HAS_FAILURE_REASON" | ReceiptStatus;
 
 type WorkspacePreferences = {
   openLedgerAfterUpload: boolean;
@@ -1139,7 +1139,7 @@ function ReceiptsPage({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search vendor, category, status..."
+              placeholder="Search vendor, category, status, reason..."
             />
             {query && (
               <button type="button" onClick={() => setQuery("")} aria-label="Clear receipt search">
@@ -1884,6 +1884,7 @@ function LedgerTable({
           <div className="receipt-cell">
             <strong>{receipt.vendor || receipt.originalFilename}</strong>
             <span>{receipt.originalFilename}</span>
+            {receipt.failureReason && <small>{receipt.failureReason}</small>}
           </div>
           <StatusBadge status={receipt.status} />
           <span className="date-cell">{receipt.receiptDate ?? formatDate(receipt.createdAt)}</span>
@@ -2596,7 +2597,8 @@ function filterReceipts(receipts: Receipt[], query: string) {
       receipt.receiptDate,
       receipt.createdAt,
       receipt.total,
-      receipt.currency
+      receipt.currency,
+      receipt.failureReason
     ]
       .filter((value) => value !== null && value !== undefined)
       .join(" ")
@@ -2608,12 +2610,16 @@ function filterReceipts(receipts: Receipt[], query: string) {
 
 function filterReceiptsByStatus(receipts: Receipt[], status: ReceiptStatusFilter) {
   if (status === "ALL") return receipts;
+  if (status === "HAS_FAILURE_REASON") {
+    return receipts.filter((receipt) => Boolean(receipt.failureReason));
+  }
   return receipts.filter((receipt) => receipt.status === status);
 }
 
 function buildStatusFilterOptions(receipts: Receipt[]) {
   const options: Array<{ status: ReceiptStatusFilter; label: string; count: number }> = [
     { status: "ALL", label: "All", count: receipts.length },
+    { status: "HAS_FAILURE_REASON", label: "With reasons", count: receipts.filter((receipt) => Boolean(receipt.failureReason)).length },
     { status: "PROCESSING", label: "Processing", count: 0 },
     { status: "COMPLETED", label: "Completed", count: 0 },
     { status: "NEEDS_REVIEW", label: "Needs review", count: 0 },
@@ -2634,13 +2640,14 @@ function buildStatusFilterOptions(receipts: Receipt[]) {
 }
 
 function exportReceiptsCsv(receipts: Receipt[]) {
-  const headers = ["Date", "Vendor", "Filename", "Category", "Status", "Total", "Currency"];
+  const headers = ["Date", "Vendor", "Filename", "Category", "Status", "Failure Reason", "Total", "Currency"];
   const rows = receipts.map((receipt) => [
     receiptDateValue(receipt),
     receipt.vendor ?? "",
     receipt.originalFilename,
     receipt.merchantCategory ?? "",
     receipt.status,
+    receipt.failureReason ?? "",
     receipt.total ?? "",
     receipt.currency ?? ""
   ]);
