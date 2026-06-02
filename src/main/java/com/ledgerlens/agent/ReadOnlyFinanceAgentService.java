@@ -2,8 +2,11 @@ package com.ledgerlens.agent;
 
 import com.ledgerlens.receipt.MerchantCategory;
 import com.ledgerlens.receipt.Receipt;
+import com.ledgerlens.receipt.ReceiptDuplicateGroup;
+import com.ledgerlens.receipt.ReceiptDuplicateMember;
 import com.ledgerlens.receipt.ReceiptRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -111,16 +114,23 @@ public class ReadOnlyFinanceAgentService {
     }
 
     private Map<String, Object> findDuplicateReceipts(UUID userId) {
-        List<Map<String, Object>> duplicates = receiptRepository.findAllByUserId(userId).stream()
-                .filter(receipt -> receipt.getContentHash() != null && !receipt.getContentHash().isBlank())
-                .collect(Collectors.groupingBy(Receipt::getContentHash))
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue().size() > 1)
-                .map(entry -> Map.<String, Object>of(
-                        "contentHash", entry.getKey(),
-                        "receiptCount", entry.getValue().size(),
-                        "receiptIds", entry.getValue().stream().map(Receipt::getId).toList()
+        List<ReceiptDuplicateGroup> groups = receiptRepository.findDuplicateReceiptGroups(userId);
+        List<String> contentHashes = groups.stream().map(ReceiptDuplicateGroup::contentHash).toList();
+        Map<String, List<UUID>> receiptIdsByHash = contentHashes.isEmpty()
+                ? Map.of()
+                : receiptRepository.findDuplicateReceiptMembers(userId, contentHashes)
+                        .stream()
+                        .collect(Collectors.groupingBy(
+                                ReceiptDuplicateMember::contentHash,
+                                LinkedHashMap::new,
+                                Collectors.mapping(ReceiptDuplicateMember::receiptId, Collectors.toList())
+                        ));
+
+        List<Map<String, Object>> duplicates = groups.stream()
+                .map(group -> Map.<String, Object>of(
+                        "contentHash", group.contentHash(),
+                        "receiptCount", group.receiptCount(),
+                        "receiptIds", receiptIdsByHash.getOrDefault(group.contentHash(), List.of())
                 ))
                 .toList();
         return Map.of("duplicateGroups", duplicates, "duplicateGroupCount", duplicates.size());
@@ -157,10 +167,8 @@ public class ReadOnlyFinanceAgentService {
     }
 
     private Map<String, Object> listHighValueTransactions(UUID userId, BigDecimal threshold) {
-        List<Map<String, Object>> receipts = receiptRepository.findAllByUserId(userId).stream()
-                .filter(receipt -> receipt.getTotal() != null && receipt.getTotal().compareTo(threshold) >= 0)
-                .sorted(Comparator.comparing(Receipt::getTotal).reversed())
-                .limit(20)
+        List<Map<String, Object>> receipts = receiptRepository.findHighValueTransactions(userId, threshold, PageRequest.of(0, 20))
+                .stream()
                 .map(this::receiptSummary)
                 .toList();
         return Map.of("threshold", threshold, "transactions", receipts, "count", receipts.size());

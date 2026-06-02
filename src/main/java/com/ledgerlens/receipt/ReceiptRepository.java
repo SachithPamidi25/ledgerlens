@@ -31,6 +31,67 @@ public interface ReceiptRepository extends JpaRepository<Receipt, UUID> {
     boolean existsByContentHashAndUserId(String contentHash, UUID userId);
 
     @Query("""
+            SELECT new com.ledgerlens.receipt.ReceiptStatusSummaryResponse(
+                COUNT(r),
+                SUM(CASE WHEN r.status = com.ledgerlens.receipt.ReceiptStatus.COMPLETED THEN 1 ELSE 0 END),
+                SUM(CASE WHEN r.status IN (
+                    com.ledgerlens.receipt.ReceiptStatus.PENDING,
+                    com.ledgerlens.receipt.ReceiptStatus.PROCESSING
+                ) THEN 1 ELSE 0 END),
+                SUM(CASE WHEN r.status IN (
+                    com.ledgerlens.receipt.ReceiptStatus.FAILED,
+                    com.ledgerlens.receipt.ReceiptStatus.PERMANENTLY_FAILED
+                ) THEN 1 ELSE 0 END),
+                SUM(CASE WHEN r.status = com.ledgerlens.receipt.ReceiptStatus.NEEDS_REVIEW THEN 1 ELSE 0 END),
+                SUM(CASE WHEN r.status = com.ledgerlens.receipt.ReceiptStatus.DUPLICATE THEN 1 ELSE 0 END),
+                COALESCE(SUM(CASE
+                    WHEN r.status = com.ledgerlens.receipt.ReceiptStatus.COMPLETED AND r.total IS NOT NULL
+                    THEN r.total
+                    ELSE 0
+                END), 0)
+            )
+            FROM Receipt r
+            WHERE r.user.id = :userId
+            """)
+    ReceiptStatusSummaryResponse summarizeStatuses(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT new com.ledgerlens.receipt.ReceiptDuplicateGroup(r.contentHash, COUNT(r))
+            FROM Receipt r
+            WHERE r.user.id = :userId
+              AND r.contentHash IS NOT NULL
+              AND r.contentHash <> ''
+            GROUP BY r.contentHash
+            HAVING COUNT(r) > 1
+            """)
+    List<ReceiptDuplicateGroup> findDuplicateReceiptGroups(@Param("userId") UUID userId);
+
+    @Query("""
+            SELECT new com.ledgerlens.receipt.ReceiptDuplicateMember(r.contentHash, r.id)
+            FROM Receipt r
+            WHERE r.user.id = :userId
+              AND r.contentHash IN :contentHashes
+            ORDER BY r.contentHash ASC, r.createdAt ASC
+            """)
+    List<ReceiptDuplicateMember> findDuplicateReceiptMembers(
+            @Param("userId") UUID userId,
+            @Param("contentHashes") List<String> contentHashes
+    );
+
+    @Query("""
+            SELECT r FROM Receipt r
+            WHERE r.user.id = :userId
+              AND r.total IS NOT NULL
+              AND r.total >= :threshold
+            ORDER BY r.total DESC
+            """)
+    List<Receipt> findHighValueTransactions(
+            @Param("userId") UUID userId,
+            @Param("threshold") java.math.BigDecimal threshold,
+            Pageable pageable
+    );
+
+    @Query("""
             SELECT r FROM Receipt r
             WHERE r.user.id = :userId
               AND r.status = com.ledgerlens.receipt.ReceiptStatus.COMPLETED

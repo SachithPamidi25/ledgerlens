@@ -56,15 +56,9 @@ class ReceiptServiceTest {
     @Test
     void summarizeStatuses_countsReceiptStatesAndCompletedSpend() {
         UUID userId = UUID.randomUUID();
-        Receipt completed = receiptWithStatus(ReceiptStatus.COMPLETED, "12.50");
-        Receipt processing = receiptWithStatus(ReceiptStatus.PROCESSING, null);
-        Receipt pending = receiptWithStatus(ReceiptStatus.PENDING, null);
-        Receipt failed = receiptWithStatus(ReceiptStatus.FAILED, null);
-        Receipt review = receiptWithStatus(ReceiptStatus.NEEDS_REVIEW, null);
-        Receipt duplicate = receiptWithStatus(ReceiptStatus.DUPLICATE, null);
 
-        when(receiptRepository.findAllByUserId(userId))
-                .thenReturn(List.of(completed, processing, pending, failed, review, duplicate));
+        when(receiptRepository.summarizeStatuses(userId))
+                .thenReturn(new ReceiptStatusSummaryResponse(6, 1, 2, 1, 1, 1, new BigDecimal("12.50")));
 
         ReceiptStatusSummaryResponse summary = receiptService.summarizeStatuses(userId);
 

@@ -184,32 +184,7 @@ public class ReceiptService {
 
     @Transactional(readOnly = true)
     public ReceiptStatusSummaryResponse summarizeStatuses(UUID userId) {
-        List<Receipt> receipts = receiptRepository.findAllByUserId(userId);
-        long completed = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.COMPLETED).count();
-        long processing = receipts.stream()
-                .filter(receipt -> receipt.getStatus() == ReceiptStatus.PENDING
-                        || receipt.getStatus() == ReceiptStatus.PROCESSING)
-                .count();
-        long failed = receipts.stream()
-                .filter(receipt -> receipt.getStatus() == ReceiptStatus.FAILED
-                        || receipt.getStatus() == ReceiptStatus.PERMANENTLY_FAILED)
-                .count();
-        long needsReview = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.NEEDS_REVIEW).count();
-        long duplicate = receipts.stream().filter(receipt -> receipt.getStatus() == ReceiptStatus.DUPLICATE).count();
-        BigDecimal completedSpend = receipts.stream()
-                .filter(receipt -> receipt.getStatus() == ReceiptStatus.COMPLETED)
-                .map(receipt -> receipt.getTotal() == null ? BigDecimal.ZERO : receipt.getTotal())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        return new ReceiptStatusSummaryResponse(
-                receipts.size(),
-                completed,
-                processing,
-                failed,
-                needsReview,
-                duplicate,
-                completedSpend
-        );
+        return receiptRepository.summarizeStatuses(userId);
     }
 
     @Transactional(readOnly = true)

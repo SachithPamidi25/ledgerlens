@@ -2,6 +2,8 @@ package com.ledgerlens.agent;
 
 import com.ledgerlens.receipt.MerchantCategory;
 import com.ledgerlens.receipt.Receipt;
+import com.ledgerlens.receipt.ReceiptDuplicateGroup;
+import com.ledgerlens.receipt.ReceiptDuplicateMember;
 import com.ledgerlens.receipt.ReceiptRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,6 +20,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -59,11 +62,15 @@ class ReadOnlyFinanceAgentServiceTest {
     @Test
     void answer_routesDuplicateSearchAndAudits() {
         UUID userId = UUID.randomUUID();
-        Receipt first = receipt("Amazon", MerchantCategory.SHOPPING, "20.00");
-        Receipt second = receipt("Amazon", MerchantCategory.SHOPPING, "20.00");
-        first.setContentHash("same-hash");
-        second.setContentHash("same-hash");
-        when(receiptRepository.findAllByUserId(userId)).thenReturn(List.of(first, second));
+        UUID firstReceiptId = UUID.randomUUID();
+        UUID secondReceiptId = UUID.randomUUID();
+        when(receiptRepository.findDuplicateReceiptGroups(userId))
+                .thenReturn(List.of(new ReceiptDuplicateGroup("same-hash", 2)));
+        when(receiptRepository.findDuplicateReceiptMembers(userId, List.of("same-hash")))
+                .thenReturn(List.of(
+                        new ReceiptDuplicateMember("same-hash", firstReceiptId),
+                        new ReceiptDuplicateMember("same-hash", secondReceiptId)
+                ));
 
         FinanceAgentResponse response = service.answer(userId, "Find duplicate receipts");
 
@@ -76,8 +83,8 @@ class ReadOnlyFinanceAgentServiceTest {
     @SuppressWarnings("unchecked")
     void answer_routesHighValueTransactionToolWithParsedThreshold() {
         UUID userId = UUID.randomUUID();
-        when(receiptRepository.findAllByUserId(userId)).thenReturn(List.of(
-                receipt("Zomato", MerchantCategory.FOOD, "42.00"),
+        when(receiptRepository.findHighValueTransactions(eq(userId), eq(new BigDecimal("100")), any()))
+                .thenReturn(List.of(
                 receipt("Apple", MerchantCategory.SHOPPING, "220.00")
         ));
 
