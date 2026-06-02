@@ -94,6 +94,32 @@ export type InsightsResponse = {
   generatedAt: string;
 };
 
+export type ReceiptSearchSource = {
+  receiptId: string;
+  vendor?: string | null;
+  category?: string | null;
+  receiptDate?: string | null;
+  total?: number | null;
+  currency?: string | null;
+  evidenceText?: string | null;
+  distance: number;
+};
+
+export type SpendingQuestionResponse = {
+  question: string;
+  answer: string;
+  sources: ReceiptSearchSource[];
+  generatedAt: string;
+};
+
+export type FinanceAgentResponse = {
+  question: string;
+  toolName?: string | null;
+  answer: string;
+  result: Record<string, unknown>;
+  generatedAt: string;
+};
+
 export type ReceiptStatusSummary = {
   total: number;
   completed: number;

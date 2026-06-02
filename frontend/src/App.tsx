@@ -35,6 +35,8 @@ import {
 import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { AppPage, CurrencyCode, ExpenseCard, ReceiptStatusFilter, Theme, Totals, WorkspacePreferences } from "./appTypes";
 import {
+  askFinanceAgent,
+  askSpendingQuestion,
   clearTokens,
   correctReceipt,
   deleteLedger,
@@ -53,7 +55,19 @@ import { ThemeToggle } from "./components/ThemeToggle";
 import { defaultPreferences, navItems, pageCopy } from "./config/workspace";
 import { useTheme } from "./hooks/useTheme";
 import { AuthScreen } from "./pages/AuthScreen";
-import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, ReceiptStatusSummary, SummaryItem } from "./types";
+import type {
+  FinanceAgentResponse,
+  InsightsResponse,
+  MonthlySummary,
+  Page,
+  Receipt,
+  ReceiptCorrectionRequest,
+  ReceiptSearchSource,
+  ReceiptStatus,
+  ReceiptStatusSummary,
+  SpendingQuestionResponse,
+  SummaryItem
+} from "./types";
 import { formatDate, formatDateTime, money, titleCase } from "./utils/format";
 import { readDisplayCurrency, readWorkspacePreferences, writeDisplayCurrency } from "./utils/preferences";
 import {
@@ -942,6 +956,46 @@ function InsightsPage({
   loading: boolean;
 }) {
   const analytics = useMemo(() => buildAnalytics(receipts, totals.currency), [receipts, totals.currency]);
+  const [spendingQuestion, setSpendingQuestion] = useState("Why did my food spending increase?");
+  const [spendingAnswer, setSpendingAnswer] = useState<SpendingQuestionResponse | null>(null);
+  const [spendingQuestionLoading, setSpendingQuestionLoading] = useState(false);
+  const [spendingQuestionError, setSpendingQuestionError] = useState("");
+  const [financeQuestion, setFinanceQuestion] = useState("List high value transactions over 100");
+  const [financeAnswer, setFinanceAnswer] = useState<FinanceAgentResponse | null>(null);
+  const [financeAgentLoading, setFinanceAgentLoading] = useState(false);
+  const [financeAgentError, setFinanceAgentError] = useState("");
+
+  async function submitSpendingQuestion(event: FormEvent) {
+    event.preventDefault();
+    const question = spendingQuestion.trim();
+    if (!question) return;
+
+    setSpendingQuestionLoading(true);
+    setSpendingQuestionError("");
+    try {
+      setSpendingAnswer(await askSpendingQuestion(question, 5));
+    } catch (error) {
+      setSpendingQuestionError(error instanceof Error ? error.message : "Could not answer that question");
+    } finally {
+      setSpendingQuestionLoading(false);
+    }
+  }
+
+  async function submitFinanceQuestion(event: FormEvent) {
+    event.preventDefault();
+    const question = financeQuestion.trim();
+    if (!question) return;
+
+    setFinanceAgentLoading(true);
+    setFinanceAgentError("");
+    try {
+      setFinanceAnswer(await askFinanceAgent(question));
+    } catch (error) {
+      setFinanceAgentError(error instanceof Error ? error.message : "Could not run the finance agent");
+    } finally {
+      setFinanceAgentLoading(false);
+    }
+  }
 
   return (
     <section className="insights-layout">
@@ -1015,8 +1069,170 @@ function InsightsPage({
         </div>
         <InsightList insights={insights} loading={loading} />
       </div>
+
+      <SpendingQaPanel
+        question={spendingQuestion}
+        answer={spendingAnswer}
+        loading={spendingQuestionLoading}
+        error={spendingQuestionError}
+        onQuestionChange={setSpendingQuestion}
+        onSubmit={submitSpendingQuestion}
+      />
+
+      <FinanceAgentPanel
+        question={financeQuestion}
+        answer={financeAnswer}
+        loading={financeAgentLoading}
+        error={financeAgentError}
+        onQuestionChange={setFinanceQuestion}
+        onSubmit={submitFinanceQuestion}
+      />
     </section>
   );
+}
+
+function SpendingQaPanel({
+  question,
+  answer,
+  loading,
+  error,
+  onQuestionChange,
+  onSubmit
+}: {
+  question: string;
+  answer: SpendingQuestionResponse | null;
+  loading: boolean;
+  error: string;
+  onQuestionChange: (question: string) => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  return (
+    <div className="panel ai-query-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Grounded Receipt Q&A</h2>
+          <p>Answers cite the closest matching receipts</p>
+        </div>
+        <Sparkles size={22} />
+      </div>
+
+      <form className="ai-query-form" onSubmit={onSubmit}>
+        <textarea value={question} onChange={(event) => onQuestionChange(event.target.value)} rows={3} />
+        {error && <p className="form-error">{error}</p>}
+        <button className="primary-action compact" type="submit" disabled={loading || !question.trim()}>
+          {loading ? "Asking..." : "Ask receipts"}
+        </button>
+      </form>
+
+      {answer ? (
+        <div className="ai-answer">
+          <p>{answer.answer}</p>
+          <SourceReceiptList sources={answer.sources} />
+        </div>
+      ) : (
+        <p className="empty-state compact">Ask a question to retrieve receipt-backed evidence.</p>
+      )}
+    </div>
+  );
+}
+
+function FinanceAgentPanel({
+  question,
+  answer,
+  loading,
+  error,
+  onQuestionChange,
+  onSubmit
+}: {
+  question: string;
+  answer: FinanceAgentResponse | null;
+  loading: boolean;
+  error: string;
+  onQuestionChange: (question: string) => void;
+  onSubmit: (event: FormEvent) => void;
+}) {
+  return (
+    <div className="panel ai-query-panel">
+      <div className="panel-heading">
+        <div>
+          <h2>Read-Only Finance Agent</h2>
+          <p>Runs allowlisted analysis tools only</p>
+        </div>
+        <ShieldCheck size={22} />
+      </div>
+
+      <form className="ai-query-form" onSubmit={onSubmit}>
+        <textarea value={question} onChange={(event) => onQuestionChange(event.target.value)} rows={3} />
+        {error && <p className="form-error">{error}</p>}
+        <button className="primary-action compact" type="submit" disabled={loading || !question.trim()}>
+          {loading ? "Running..." : "Run agent"}
+        </button>
+      </form>
+
+      {answer ? (
+        <div className="ai-answer">
+          <div className="agent-answer-heading">
+            <span>{answer.toolName ?? "readOnlyRefusal"}</span>
+            <small>{formatDateTime(answer.generatedAt)}</small>
+          </div>
+          <p>{answer.answer}</p>
+          <AgentResultPreview result={answer.result} />
+        </div>
+      ) : (
+        <p className="empty-state compact">Ask for duplicates, category breakdowns, spikes, monthly spend, or high-value transactions.</p>
+      )}
+    </div>
+  );
+}
+
+function SourceReceiptList({ sources }: { sources: ReceiptSearchSource[] }) {
+  if (!sources.length) {
+    return <p className="empty-state compact">No source receipts returned.</p>;
+  }
+
+  return (
+    <div className="source-list">
+      {sources.slice(0, 5).map((source) => (
+        <div className="source-row" key={source.receiptId}>
+          <span>{source.vendor ?? "Unknown merchant"}</span>
+          <strong>{money(Number(source.total ?? 0), source.currency ?? "INR")}</strong>
+          <small>
+            {[source.category, source.receiptDate ? formatDate(source.receiptDate) : null]
+              .filter(Boolean)
+              .join(" · ")}
+          </small>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function AgentResultPreview({ result }: { result: Record<string, unknown> }) {
+  const entries = Object.entries(result).filter(([, value]) => value !== null && value !== undefined);
+  if (!entries.length) {
+    return null;
+  }
+
+  return (
+    <div className="agent-result-grid">
+      {entries.slice(0, 4).map(([key, value]) => (
+        <div key={key}>
+          <span>{titleCase(key)}</span>
+          <strong>{formatAgentValue(value)}</strong>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatAgentValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return `${value.length} item${value.length === 1 ? "" : "s"}`;
+  }
+  if (typeof value === "object" && value !== null) {
+    return `${Object.keys(value).length} field${Object.keys(value).length === 1 ? "" : "s"}`;
+  }
+  return String(value);
 }
 
 function SettingsPage({

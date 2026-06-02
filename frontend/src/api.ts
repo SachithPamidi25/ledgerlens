@@ -1,5 +1,6 @@
 import type {
   AuthResponse,
+  FinanceAgentResponse,
   InsightsResponse,
   MonthlySummary,
   Page,
@@ -7,6 +8,7 @@ import type {
   ReceiptCorrectionRequest,
   ReceiptExpensePeriod,
   ReceiptStatusSummary,
+  SpendingQuestionResponse,
   UploadUrlResponse
 } from "./types";
 
@@ -175,6 +177,19 @@ export function getMonthlySummary(year?: number, month?: number) {
 
 export function getInsights(months = 3) {
   return request<InsightsResponse>(`/api/insights?months=${months}`);
+}
+
+export function askSpendingQuestion(question: string, limit = 5) {
+  const params = new URLSearchParams({
+    question,
+    limit: String(limit)
+  });
+  return request<SpendingQuestionResponse>(`/api/insights/ask?${params.toString()}`);
+}
+
+export function askFinanceAgent(question: string) {
+  const params = new URLSearchParams({ question });
+  return request<FinanceAgentResponse>(`/api/agent/finance?${params.toString()}`);
 }
 
 export async function uploadReceipt(file: File, onUploaded?: () => void) {
