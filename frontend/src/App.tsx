@@ -4,7 +4,6 @@ import {
   Bell,
   CalendarDays,
   CheckCircle2,
-  ChevronDown,
   ChevronRight,
   Clipboard,
   Database,
@@ -22,7 +21,6 @@ import {
   RefreshCcw,
   RotateCcw,
   Search,
-  Settings,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -34,7 +32,8 @@ import {
   WalletCards,
   X
 } from "lucide-react";
-import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, FormEvent, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { AppPage, CurrencyCode, ExpenseCard, ReceiptStatusFilter, Theme, Totals, WorkspacePreferences } from "./appTypes";
 import {
   clearTokens,
   correctReceipt,
@@ -45,341 +44,41 @@ import {
   getMonthlySummary,
   getReceiptStatusSummary,
   getReceipts,
-  login,
   logout,
-  register,
   retryReceiptProcessing,
   uploadReceipt
 } from "./api";
+import { CurrencySelect } from "./components/CurrencySelect";
+import { ThemeToggle } from "./components/ThemeToggle";
+import { defaultPreferences, navItems, pageCopy } from "./config/workspace";
+import { useTheme } from "./hooks/useTheme";
+import { AuthScreen } from "./pages/AuthScreen";
 import type { InsightsResponse, MonthlySummary, Page, Receipt, ReceiptCorrectionRequest, ReceiptStatus, ReceiptStatusSummary, SummaryItem } from "./types";
-
-type AuthMode = "login" | "register";
-type AppPage = "overview" | "upload" | "expenses" | "receipts" | "insights" | "settings";
-type Theme = "light" | "dark";
-type CurrencyCode = "INR" | "USD" | "EUR" | "GBP" | "AUD" | "CAD" | "SGD" | "LKR";
-type ReceiptStatusFilter = "ALL" | "HAS_FAILURE_REASON" | ReceiptStatus;
-
-type WorkspacePreferences = {
-  openLedgerAfterUpload: boolean;
-  liveStatusUpdates: boolean;
-  defaultPage: AppPage;
-  monthlyBudget: number;
-  budgetWarningPercent: number;
-  compactMode: boolean;
-  autoRefreshSeconds: number;
-};
-
-type Totals = {
-  total: number;
-  currency: CurrencyCode;
-  count: number;
-  completed: number;
-  failed: number;
-  processing: number;
-  duplicate: number;
-};
-
-type ExpenseCard = {
-  key: string;
-  label: string;
-  periodType: "Month" | "Year";
-  total: number;
-  count: number;
-  average: number;
-  latestDate: string;
-  topCategory?: string;
-  categories: Array<{ name: string; amount: number }>;
-};
-
-const currencyOptions: { code: CurrencyCode; label: string }[] = [
-  { code: "INR", label: "INR" },
-  { code: "USD", label: "USD" },
-  { code: "EUR", label: "EUR" },
-  { code: "GBP", label: "GBP" },
-  { code: "AUD", label: "AUD" },
-  { code: "CAD", label: "CAD" },
-  { code: "SGD", label: "SGD" },
-  { code: "LKR", label: "LKR" }
-];
-
-const defaultPreferences: WorkspacePreferences = {
-  openLedgerAfterUpload: true,
-  liveStatusUpdates: true,
-  defaultPage: "overview",
-  monthlyBudget: 0,
-  budgetWarningPercent: 80,
-  compactMode: false,
-  autoRefreshSeconds: 0
-};
-
-const navItems: Array<{ id: AppPage; label: string; icon: React.ReactNode }> = [
-  { id: "overview", label: "Overview", icon: <Home size={18} /> },
-  { id: "upload", label: "Upload", icon: <UploadCloud size={18} /> },
-  { id: "expenses", label: "Monthly Expenses", icon: <CalendarDays size={18} /> },
-  { id: "receipts", label: "Receipts", icon: <ReceiptText size={18} /> },
-  { id: "insights", label: "Insights", icon: <Sparkles size={18} /> },
-  { id: "settings", label: "Settings", icon: <Settings size={18} /> }
-];
-
-const pageCopy: Record<AppPage, { title: string; description: string }> = {
-  overview: {
-    title: "Overview",
-    description: "A compact readout of verified spend, receipt flow, and category concentration."
-  },
-  upload: {
-    title: "Upload Center",
-    description: "Create receipt records, send files to storage, and queue extraction jobs."
-  },
-  expenses: {
-    title: "Monthly Expenses",
-    description: "Browse spending by receipt date using monthly or yearly expense cards."
-  },
-  receipts: {
-    title: "Receipt Ledger",
-    description: "Review every receipt as an expense record with status, merchant, category, and running totals."
-  },
-  insights: {
-    title: "Spend Insights",
-    description: "Compare category mix, merchant concentration, and AI-generated spending signals."
-  },
-  settings: {
-    title: "Workspace Settings",
-    description: "Session controls and runtime connection details for this local LedgerLens workspace."
-  }
-};
+import { formatDate, formatDateTime, money, titleCase } from "./utils/format";
+import { readDisplayCurrency, readWorkspacePreferences, writeDisplayCurrency } from "./utils/preferences";
+import {
+  buildAnalytics,
+  buildExpenseCards,
+  buildReceiptMonthOptions,
+  buildStatusFilterOptions,
+  exportReceiptsCsv,
+  filterReceipts,
+  filterReceiptsByStatus,
+  formatMonthLabel,
+  groupReceiptsByDate,
+  normalizeCategories,
+  receiptMonthKey,
+  summarizeReceipts
+} from "./utils/receiptAnalytics";
 
 function App() {
   const [isAuthenticated, setAuthenticated] = useState(Boolean(getAccessToken()));
-  const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem("ledgerlens.theme");
-    if (saved === "light" || saved === "dark") return saved;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  });
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    localStorage.setItem("ledgerlens.theme", theme);
-  }, [theme]);
-
-  const toggleTheme = useCallback(() => {
-    setTheme((current) => (current === "dark" ? "light" : "dark"));
-  }, []);
+  const { theme, toggleTheme } = useTheme();
 
   return isAuthenticated ? (
     <Dashboard theme={theme} onToggleTheme={toggleTheme} onSignedOut={() => setAuthenticated(false)} />
   ) : (
     <AuthScreen theme={theme} onToggleTheme={toggleTheme} onSignedIn={() => setAuthenticated(true)} />
-  );
-}
-
-function ThemeToggle({ theme, onToggle }: { theme: Theme; onToggle: () => void }) {
-  const isDark = theme === "dark";
-
-  return (
-    <button className="theme-toggle" type="button" onClick={onToggle} aria-label={`Switch to ${isDark ? "light" : "dark"} theme`} title={`${isDark ? "Light" : "Dark"} theme`}>
-      {isDark ? <Sun size={18} /> : <Moon size={18} />}
-      <span>{isDark ? "Light" : "Dark"}</span>
-    </button>
-  );
-}
-
-function CurrencySelect({ value, onChange }: { value: CurrencyCode; onChange: (currency: CurrencyCode) => void }) {
-  const [open, setOpen] = useState(false);
-  const selected = currencyOptions.find((currency) => currency.code === value) ?? currencyOptions[0];
-
-  return (
-    <div className="currency-select">
-      <span>Currency</span>
-      <div className="currency-dropdown">
-        <button
-          className="currency-trigger"
-          type="button"
-          onClick={() => setOpen((current) => !current)}
-          aria-expanded={open}
-          aria-haspopup="listbox"
-        >
-          {selected.label}
-          <ChevronDown size={15} />
-        </button>
-        {open && (
-          <div className="currency-menu" role="listbox" aria-label="Display currency">
-            {currencyOptions.map((currency) => (
-              <button
-                key={currency.code}
-                className={value === currency.code ? "active" : ""}
-                type="button"
-                onClick={() => {
-                  onChange(currency.code);
-                  setOpen(false);
-                }}
-                role="option"
-                aria-selected={value === currency.code}
-              >
-                {currency.label}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function isCurrencyCode(value: unknown): value is CurrencyCode {
-  return typeof value === "string" && currencyOptions.some((currency) => currency.code === value);
-}
-
-const DISPLAY_CURRENCY_KEY = "ledgerlens.currency";
-
-function readDisplayCurrency(): CurrencyCode {
-  const saved = localStorage.getItem(DISPLAY_CURRENCY_KEY);
-  return isCurrencyCode(saved) ? saved : "INR";
-}
-
-function writeDisplayCurrency(currency: CurrencyCode) {
-  localStorage.setItem(DISPLAY_CURRENCY_KEY, currency);
-}
-
-function isAppPage(value: unknown): value is AppPage {
-  return typeof value === "string" && navItems.some((item) => item.id === value);
-}
-
-function isStartupPage(value: unknown): value is AppPage {
-  return isAppPage(value) && value !== "settings";
-}
-
-function readWorkspacePreferences(): WorkspacePreferences {
-  const saved = localStorage.getItem("ledgerlens.preferences");
-  if (!saved) return defaultPreferences;
-
-  try {
-    const parsed = JSON.parse(saved) as Partial<WorkspacePreferences>;
-    return {
-      openLedgerAfterUpload: parsed.openLedgerAfterUpload ?? defaultPreferences.openLedgerAfterUpload,
-      liveStatusUpdates: parsed.liveStatusUpdates ?? defaultPreferences.liveStatusUpdates,
-      defaultPage: isStartupPage(parsed.defaultPage) ? parsed.defaultPage : defaultPreferences.defaultPage,
-      monthlyBudget: typeof parsed.monthlyBudget === "number" ? parsed.monthlyBudget : defaultPreferences.monthlyBudget,
-      budgetWarningPercent:
-        typeof parsed.budgetWarningPercent === "number"
-          ? parsed.budgetWarningPercent
-          : defaultPreferences.budgetWarningPercent,
-      compactMode: parsed.compactMode ?? defaultPreferences.compactMode,
-      autoRefreshSeconds:
-        typeof parsed.autoRefreshSeconds === "number"
-          ? parsed.autoRefreshSeconds
-          : defaultPreferences.autoRefreshSeconds
-    };
-  } catch {
-    return defaultPreferences;
-  }
-}
-
-function AuthScreen({ theme, onToggleTheme, onSignedIn }: { theme: Theme; onToggleTheme: () => void; onSignedIn: () => void }) {
-  const [mode, setMode] = useState<AuthMode>("login");
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
-
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    setLoading(true);
-    setError("");
-
-    try {
-      if (mode === "login") {
-        await login(email, password);
-      } else {
-        await register(fullName, email, password);
-      }
-      onSignedIn();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return (
-    <main className="auth-shell">
-      <section className="brand-panel">
-        <div className="auth-theme-action">
-          <ThemeToggle theme={theme} onToggle={onToggleTheme} />
-        </div>
-        <div className="auth-brand-lockup">
-          <div className="logo-mark">
-            <ReceiptText size={28} />
-          </div>
-          <div>
-            <strong>LedgerLens</strong>
-            <span>Receipt intelligence workspace</span>
-          </div>
-        </div>
-        <h1>Turn receipts into clean expense records.</h1>
-        <p>Upload, classify, reconcile, and review spending from a workspace built around the receipt lifecycle.</p>
-        <div className="receipt-preview" aria-hidden="true">
-          <div className="preview-top">
-            <span>Receipt extraction</span>
-            <strong>Ready</strong>
-          </div>
-          <div className="preview-bars">
-            <span />
-            <span />
-            <span />
-            <span />
-          </div>
-          <div className="preview-total">
-            <span>Merchant, date, tax, total</span>
-            <span>AI PARSED</span>
-          </div>
-        </div>
-      </section>
-
-      <section className="auth-panel">
-        <div className="auth-card">
-          <div className="auth-card-heading">
-            <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
-            <p>{mode === "login" ? "Continue to your LedgerLens workspace." : "Create a local account for this workspace."}</p>
-          </div>
-          <div className="segmented" role="tablist" aria-label="Authentication mode">
-            <button className={mode === "login" ? "active" : ""} onClick={() => setMode("login")} type="button">
-              Sign in
-            </button>
-            <button className={mode === "register" ? "active" : ""} onClick={() => setMode("register")} type="button">
-              Create account
-            </button>
-          </div>
-
-          <form onSubmit={submit} className="auth-form">
-            {mode === "register" && (
-              <label>
-                Full name
-                <input value={fullName} onChange={(event) => setFullName(event.target.value)} required />
-              </label>
-            )}
-            <label>
-              Email
-              <input type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-            </label>
-            {error && <p className="form-error">{error}</p>}
-            <button className="primary-action" type="submit" disabled={loading}>
-              {loading ? "Working..." : mode === "login" ? "Sign in" : "Create account"}
-            </button>
-          </form>
-        </div>
-      </section>
-    </main>
   );
 }
 
@@ -1692,7 +1391,7 @@ function ThemePreference({ theme, onToggle }: { theme: Theme; onToggle: () => vo
   );
 }
 
-function Metric({ icon, label, value, detail }: { icon: React.ReactNode; label: string; value: string; detail: string }) {
+function Metric({ icon, label, value, detail }: { icon: ReactNode; label: string; value: string; detail: string }) {
   return (
     <article className="metric-card">
       <div className="metric-icon">{icon}</div>
@@ -2415,7 +2114,7 @@ function ToggleRow({
   checked,
   onChange
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   detail: string;
   checked: boolean;
@@ -2441,7 +2140,7 @@ function SelectPreferenceRow({
   options,
   onChange
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   detail: string;
   value: string;
@@ -2464,315 +2163,6 @@ function SelectPreferenceRow({
       </select>
     </label>
   );
-}
-
-function buildReceiptMonthOptions(receipts: Receipt[]) {
-  const counts = new Map<string, number>();
-  receipts.forEach((receipt) => {
-    const key = receiptMonthKey(receipt);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  });
-
-  return Array.from(counts.entries())
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([key, count]) => ({ key, count, label: formatMonthLabel(key) }));
-}
-
-function buildExpenseCards(receipts: Receipt[], mode: "monthly" | "yearly", currency: CurrencyCode): ExpenseCard[] {
-  const completedReceipts = receipts.filter((receipt) => receipt.status === "COMPLETED");
-  const grouped = new Map<string, Receipt[]>();
-
-  completedReceipts.forEach((receipt) => {
-    const key = mode === "monthly" ? receiptMonthKey(receipt) : receiptMonthKey(receipt).slice(0, 4);
-    grouped.set(key, [...(grouped.get(key) ?? []), receipt]);
-  });
-
-  return Array.from(grouped.entries())
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([key, groupReceipts]) => {
-      const categories = summarizeExpenseCategories(groupReceipts);
-      return {
-        key,
-        label: mode === "monthly" ? formatMonthLabel(key) : key,
-        periodType: mode === "monthly" ? "Month" : "Year",
-        total: groupReceipts.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
-        count: groupReceipts.length,
-        average: groupReceipts.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0) / Math.max(groupReceipts.length, 1),
-        latestDate: groupReceipts.map(receiptDateValue).sort((a, b) => b.localeCompare(a))[0],
-        topCategory: categories[0]?.name,
-        categories
-      };
-    });
-}
-
-function summarizeExpenseCategories(receipts: Receipt[]) {
-  const totals = new Map<string, number>();
-  receipts.forEach((receipt) => {
-    const category = receipt.merchantCategory ? titleCase(receipt.merchantCategory) : "Uncategorized";
-    totals.set(category, (totals.get(category) ?? 0) + Number(receipt.total ?? 0));
-  });
-
-  return Array.from(totals.entries())
-    .map(([name, amount]) => ({ name, amount }))
-    .sort((a, b) => b.amount - a.amount);
-}
-
-function receiptMonthKey(receipt: Receipt) {
-  return receiptDateValue(receipt).slice(0, 7);
-}
-
-function receiptDateValue(receipt: Receipt) {
-  return receipt.receiptDate ?? receipt.createdAt.slice(0, 10);
-}
-
-function summarizeReceipts(receipts: Receipt[], currency: CurrencyCode): Totals {
-  const completed = receipts.filter((receipt) => receipt.status === "COMPLETED");
-  return {
-    total: completed.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
-    currency,
-    count: receipts.length,
-    completed: completed.length,
-    failed: receipts.filter((receipt) => receipt.status === "FAILED" || receipt.status === "PERMANENTLY_FAILED").length,
-    processing: receipts.filter((receipt) => receipt.status === "PROCESSING" || receipt.status === "PENDING").length,
-    duplicate: receipts.filter((receipt) => receipt.status === "DUPLICATE").length
-  };
-}
-
-function buildAnalytics(receipts: Receipt[], currency: CurrencyCode) {
-  const completed = receipts.filter((receipt) => receipt.status === "COMPLETED");
-  const monthlyTotals = new Map<string, { total: number; count: number }>();
-
-  completed.forEach((receipt) => {
-    const key = receiptMonthKey(receipt);
-    const current = monthlyTotals.get(key) ?? { total: 0, count: 0 };
-    monthlyTotals.set(key, {
-      total: current.total + Number(receipt.total ?? 0),
-      count: current.count + 1
-    });
-  });
-
-  const monthlyTrend = Array.from(monthlyTotals.entries())
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([key, value]) => ({
-      key,
-      label: shortMonthLabel(key),
-      total: value.total,
-      count: value.count
-    }));
-
-  const statusOrder: ReceiptStatus[] = ["COMPLETED", "NEEDS_REVIEW", "PROCESSING", "PENDING", "FAILED", "PERMANENTLY_FAILED", "DUPLICATE"];
-  const statusMix = statusOrder
-    .map((status) => ({
-      status,
-      count: receipts.filter((receipt) => receipt.status === status).length
-    }))
-    .filter((row) => row.count > 0);
-
-  const highValueReceipts = [...completed]
-    .sort((a, b) => Number(b.total ?? 0) - Number(a.total ?? 0))
-    .slice(0, 5);
-
-  return {
-    monthlyTrend,
-    statusMix,
-    highValueReceipts,
-    averageReceipt: completed.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0) / Math.max(completed.length, 1),
-    needsReview: receipts.filter((receipt) => receipt.status === "NEEDS_REVIEW").length,
-    duplicates: receipts.filter((receipt) => receipt.status === "DUPLICATE").length,
-    currency
-  };
-}
-
-function filterReceipts(receipts: Receipt[], query: string) {
-  const term = query.trim().toLowerCase();
-  if (!term) return receipts;
-
-  return receipts.filter((receipt) => {
-    const haystack = [
-      receipt.vendor,
-      receipt.originalFilename,
-      receipt.merchantCategory,
-      receipt.status,
-      receipt.receiptDate,
-      receipt.createdAt,
-      receipt.total,
-      receipt.currency,
-      receipt.failureReason
-    ]
-      .filter((value) => value !== null && value !== undefined)
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(term);
-  });
-}
-
-function filterReceiptsByStatus(receipts: Receipt[], status: ReceiptStatusFilter) {
-  if (status === "ALL") return receipts;
-  if (status === "HAS_FAILURE_REASON") {
-    return receipts.filter((receipt) => Boolean(receipt.failureReason));
-  }
-  return receipts.filter((receipt) => receipt.status === status);
-}
-
-function buildStatusFilterOptions(receipts: Receipt[]) {
-  const options: Array<{ status: ReceiptStatusFilter; label: string; count: number }> = [
-    { status: "ALL", label: "All", count: receipts.length },
-    { status: "HAS_FAILURE_REASON", label: "With reasons", count: receipts.filter((receipt) => Boolean(receipt.failureReason)).length },
-    { status: "PROCESSING", label: "Processing", count: 0 },
-    { status: "COMPLETED", label: "Completed", count: 0 },
-    { status: "NEEDS_REVIEW", label: "Needs review", count: 0 },
-    { status: "FAILED", label: "Failed", count: 0 },
-    { status: "DUPLICATE", label: "Duplicate", count: 0 },
-    { status: "PERMANENTLY_FAILED", label: "Permanent", count: 0 }
-  ];
-  const byStatus = new Map<ReceiptStatusFilter, number>();
-  receipts.forEach((receipt) => {
-    byStatus.set(receipt.status, (byStatus.get(receipt.status) ?? 0) + 1);
-  });
-
-  return options.map((option) =>
-    option.status === "ALL"
-      ? option
-      : { ...option, count: byStatus.get(option.status) ?? 0 }
-  );
-}
-
-function exportReceiptsCsv(receipts: Receipt[]) {
-  const headers = ["Date", "Vendor", "Filename", "Category", "Status", "Failure Reason", "Total", "Currency"];
-  const rows = receipts.map((receipt) => [
-    receiptDateValue(receipt),
-    receipt.vendor ?? "",
-    receipt.originalFilename,
-    receipt.merchantCategory ?? "",
-    receipt.status,
-    receipt.failureReason ?? "",
-    receipt.total ?? "",
-    receipt.currency ?? ""
-  ]);
-  const csv = [headers, ...rows]
-    .map((row) => row.map((value) => `"${String(value).replaceAll("\"", "\"\"")}"`).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `ledgerlens-receipts-${new Date().toISOString().slice(0, 10)}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
-
-function groupReceiptsByDate(receipts: Receipt[]) {
-  const groups = new Map<string, Receipt[]>();
-  receipts.forEach((receipt) => {
-    const key = receiptDateValue(receipt);
-    groups.set(key, [...(groups.get(key) ?? []), receipt]);
-  });
-
-  return Array.from(groups.entries())
-    .sort(([a], [b]) => b.localeCompare(a))
-    .map(([key, groupReceipts]) => {
-      const completed = groupReceipts.filter((receipt) => receipt.status === "COMPLETED");
-      return {
-        key,
-        receipts: groupReceipts,
-        total: completed.reduce((sum, receipt) => sum + Number(receipt.total ?? 0), 0),
-        currency: completed[0]?.currency ?? groupReceipts[0]?.currency ?? "INR"
-      };
-    });
-}
-
-function formatMonthLabel(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric" }).format(new Date(year, month - 1, 1));
-}
-
-function shortMonthLabel(monthKey: string) {
-  const [year, month] = monthKey.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-IN", { month: "short", year: "2-digit" }).format(new Date(year, month - 1, 1));
-}
-
-function normalizeCategories(
-  summary: MonthlySummary | SummaryItem[] | Record<string, number> | null,
-  insights: InsightsResponse | null
-) {
-  if (insights?.byCategory) {
-    return Object.entries(insights.byCategory).map(([name, amount]) => ({ name, amount: Number(amount) }));
-  }
-
-  if (summary && "byCategory" in summary) {
-    return Object.entries(summary.byCategory).map(([name, amount]) => ({ name, amount: Number(amount) }));
-  }
-
-  if (Array.isArray(summary)) {
-    return summary.map((item) => ({
-      name: item.category ?? item.merchantCategory ?? "Other",
-      amount: Number(item.total ?? item.amount ?? 0)
-    }));
-  }
-
-  if (summary && typeof summary === "object") {
-    return Object.entries(summary)
-      .filter(([, amount]) => typeof amount === "number")
-      .map(([name, amount]) => ({ name, amount: Number(amount) }));
-  }
-
-  return [];
-}
-
-function money(value: number, currency: string | null = "INR") {
-  if (!currency) {
-    return `${new Intl.NumberFormat("en-IN", { maximumFractionDigits: 0 }).format(Number(value || 0))} mixed`;
-  }
-
-  return new Intl.NumberFormat(localeForCurrency(currency), {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0
-  }).format(Number(value || 0));
-}
-
-function localeForCurrency(currency: string) {
-  const locales: Record<string, string> = {
-    INR: "en-IN",
-    USD: "en-US",
-    EUR: "de-DE",
-    GBP: "en-GB",
-    AUD: "en-AU",
-    CAD: "en-CA",
-    SGD: "en-SG",
-    LKR: "en-LK"
-  };
-
-  return locales[currency.toUpperCase()] ?? "en-US";
-}
-
-function formatDate(value: string) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-    const [year, month, day] = value.split("-").map(Number);
-    return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(year, month - 1, day));
-  }
-
-  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
-}
-
-function formatDateTime(value: string) {
-  return new Intl.DateTimeFormat("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
-function titleCase(value: string) {
-  return value
-    .replaceAll("_", " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 export default App;
