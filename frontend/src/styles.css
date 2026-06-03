@@ -1520,7 +1520,7 @@ select:focus {
 
 .date-ledger-group {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .date-ledger-heading {
@@ -1549,13 +1549,13 @@ select:focus {
 }
 
 .ledger-row {
-  min-width: 980px;
+  min-width: 1120px;
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) 148px 116px 138px minmax(300px, 1.35fr) 172px;
-  gap: 16px;
+  grid-template-columns: minmax(190px, 1fr) 132px 112px 126px minmax(280px, 1.2fr) 236px;
+  gap: 14px;
   align-items: center;
   min-height: 74px;
-  padding: 12px 14px;
+  padding: 14px 16px;
   border-top: 1px solid #edf1ef;
 }
 
@@ -1581,7 +1581,8 @@ select:focus {
 }
 
 .ledger-row > span,
-.ledger-row > strong {
+.ledger-row > strong,
+.ledger-row > div {
   min-width: 0;
 }
 
@@ -1628,6 +1629,7 @@ select:focus {
 }
 
 .row-action-button {
+  min-width: 0;
   min-height: 36px;
   display: inline-flex;
   align-items: center;
@@ -1635,7 +1637,7 @@ select:focus {
   gap: 7px;
   border: 1px solid #d5ded9;
   border-radius: 8px;
-  padding: 0 10px;
+  padding: 0 9px;
   background: #fff;
   color: #25342e;
   font-size: 12px;
@@ -1653,8 +1655,9 @@ select:focus {
 }
 
 .row-actions {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: 36px 66px 76px 36px;
+  gap: 7px;
   justify-content: flex-end;
 }
 
@@ -1857,6 +1860,7 @@ select:focus {
 }
 
 .journal-preview {
+  min-width: 0;
   display: grid;
   gap: 7px;
   text-align: left;
@@ -1872,7 +1876,7 @@ select:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
 }
 
 .journal-entry-head strong {
@@ -1886,7 +1890,7 @@ select:focus {
 .journal-compact {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 6px;
 }
 
 .journal-compact span {
@@ -1894,10 +1898,10 @@ select:focus {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px;
   border: 1px solid #dfe8e3;
   border-radius: 8px;
-  padding: 0 9px;
+  padding: 0 8px;
   background: #fbfdfc;
   color: #62706a;
   font-size: 12px;
@@ -1918,7 +1922,7 @@ select:focus {
 .balance-pill {
   flex: 0 0 auto;
   border-radius: 999px;
-  padding: 4px 8px;
+  padding: 4px 7px;
   font-size: 11px;
   font-weight: 900;
   text-transform: uppercase;
@@ -3145,6 +3149,11 @@ select:focus {
 
   .ledger-row .status {
     justify-content: flex-start;
+  }
+
+  .row-actions {
+    grid-template-columns: 36px minmax(0, 1fr) minmax(0, 1fr) 36px;
+    justify-content: stretch;
   }
 
   .receipt-drawer {

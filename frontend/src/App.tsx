@@ -1718,7 +1718,7 @@ function MonthlyLedger({
 
   return (
     <div className="monthly-ledger">
-      {groups.map((group) => (
+      {groups.map((group, index) => (
         <section className="date-ledger-group" key={group.key}>
           <div className="date-ledger-heading">
             <div>
@@ -1728,16 +1728,17 @@ function MonthlyLedger({
             <span>{money(group.total, group.currency)}</span>
           </div>
           <LedgerTable
-          receipts={group.receipts}
-          loading={loading}
-          deletingReceiptId={deletingReceiptId}
-          retryingReceiptId={retryingReceiptId}
-          selectedReceiptId={selectedReceiptId}
-          onViewReceipt={onViewReceipt}
-          onEditReceipt={onEditReceipt}
-          onRetryReceipt={onRetryReceipt}
-          onDeleteReceipt={onDeleteReceipt}
-        />
+            receipts={group.receipts}
+            loading={loading}
+            deletingReceiptId={deletingReceiptId}
+            retryingReceiptId={retryingReceiptId}
+            selectedReceiptId={selectedReceiptId}
+            showHeader={index === 0}
+            onViewReceipt={onViewReceipt}
+            onEditReceipt={onEditReceipt}
+            onRetryReceipt={onRetryReceipt}
+            onDeleteReceipt={onDeleteReceipt}
+          />
         </section>
       ))}
     </div>
@@ -1750,6 +1751,7 @@ function LedgerTable({
   deletingReceiptId,
   retryingReceiptId,
   selectedReceiptId,
+  showHeader,
   onViewReceipt,
   onEditReceipt,
   onRetryReceipt,
@@ -1760,6 +1762,7 @@ function LedgerTable({
   deletingReceiptId: string | null;
   retryingReceiptId: string | null;
   selectedReceiptId: string | null;
+  showHeader: boolean;
   onViewReceipt: (receipt: Receipt) => void;
   onEditReceipt: (receipt: Receipt) => void;
   onRetryReceipt: (receipt: Receipt) => void;
@@ -1786,14 +1789,16 @@ function LedgerTable({
 
   return (
     <div className="ledger-table">
-      <div className="ledger-row ledger-head">
-        <span>Receipt</span>
-        <span>Status</span>
-        <span>Date</span>
-        <span>Category</span>
-        <span>Journal</span>
-        <span>Actions</span>
-      </div>
+      {showHeader && (
+        <div className="ledger-row ledger-head">
+          <span>Receipt</span>
+          <span>Status</span>
+          <span>Date</span>
+          <span>Category</span>
+          <span>Journal</span>
+          <span>Actions</span>
+        </div>
+      )}
       {rows.map(({ receipt, amount, running }) => (
         <div className={selectedReceiptId === receipt.id ? "ledger-row selected" : "ledger-row"} key={receipt.id}>
           <div className="receipt-cell">
