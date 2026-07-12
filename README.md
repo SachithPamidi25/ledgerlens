@@ -479,13 +479,6 @@ src/main/java/com/ledgerlens
 `-- user        # user entity and repository
 ```
 
-## Resume Bullets
-
-- Built LedgerLens, a Spring Boot and React receipt-intelligence platform with MinIO direct uploads, transactional outbox, RabbitMQ workers, Redis deduplication locks, SSE status updates, and PostgreSQL-backed double-entry ledger posting.
-- Designed an LLM extraction boundary with swappable providers, structured output validation, prompt-injection defenses, human review routing, Redis result caching, Micrometer/Prometheus metrics, and an offline model evaluation harness.
-- Added pgvector-powered merchant normalization, semantic receipt retrieval, grounded spending Q&A with source receipts, and a read-only finance agent with allowlisted tools plus audited tool calls.
-- Modeled production reliability patterns including idempotency keys, at-least-once queue handling, DLQ retries, terminal receipt states, ledger balance checks, and external API isolation from database transactions.
-
 ## Design Notes
 
 This project intentionally favors reliability and clear boundaries over a simple CRUD-only implementation. The receipt pipeline is split into API, storage, outbox, queue, worker, persistence, and ledger-posting stages so each failure mode can be handled independently.
